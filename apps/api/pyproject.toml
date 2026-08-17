@@ -3,6 +3,7 @@ name = "yetsee-api"
 version = "0.9.0a3"
 description = "YetSee OS Alpha reference implementation"
 requires-python = ">=3.11"
+
 dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.30,<1",
@@ -15,7 +16,8 @@ dependencies = [
   "email-validator>=2.2,<3",
   "redis>=5.2,<6",
   "pytrends>=4.9,<5",
-  "urllib3<2"
+  "urllib3<2",
+  "networkx>=3.4,<4"
 ]
 
 [project.scripts]
