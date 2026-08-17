@@ -1,0 +1,2 @@
+import { StudioFrame } from "../../../components/StudioChrome";
+export default function Loading(){return <StudioFrame active="Investigations"><div className="researchWorkspace"><div className="studioLoadingState"><span className="spinner"/><div><strong>Opening living investigation</strong><p>Loading hypotheses, evidence, agents, commands, timeline and revisions…</p></div></div></div></StudioFrame>}

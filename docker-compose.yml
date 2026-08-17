@@ -1,0 +1,71 @@
+name: yetsee
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: yetsee
+      POSTGRES_USER: yetsee
+      POSTGRES_PASSWORD: yetsee
+    ports:
+      - "5432:5432"
+    volumes:
+      - yetsee_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yetsee -d yetsee"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./apps/api
+    environment:
+      DATABASE_URL: postgresql+psycopg://yetsee:yetsee@postgres:5432/yetsee
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      CORS_ORIGINS: http://localhost:3000
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      ALLOW_MANUAL_PROMOTION: ${ALLOW_MANUAL_PROMOTION:-true}
+    ports:
+      - "8100:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  scheduler:
+    build:
+      context: ./apps/api
+    command: ["sh", "-c", "alembic upgrade head && python -m app.signal_engine.scheduler"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://yetsee:yetsee@postgres:5432/yetsee
+      REDIS_URL: redis://redis:6379/0
+      YETSEE_INGEST_INTERVAL_SECONDS: ${YETSEE_INGEST_INTERVAL_SECONDS:-900}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    profiles: ["scheduler"]
+
+  frontend:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8100
+    environment:
+      INTERNAL_API_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  yetsee_postgres:
