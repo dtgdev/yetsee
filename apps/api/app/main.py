@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.mission_routes import router as mission_router
 from app.api.routes import router
 from app.core.config import settings
 
@@ -30,3 +31,4 @@ def root() -> dict[str, str]:
 
 
 app.include_router(router, prefix=settings.api_v1_prefix)
+app.include_router(mission_router, prefix=settings.api_v1_prefix, tags=["missions"])
