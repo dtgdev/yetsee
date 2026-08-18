@@ -3,76 +3,74 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import GalileoGraph from "./GalileoGraph";
+
 type MissionStep={id?:string;sequence?:number;position?:number;agent_id:string;task_type:string;status?:string;task_id?:string|null;finding_ids?:string[];error?:string|null};
 type Mission={id:string;objective:string;status:string;created_at?:string;started_at?:string|null;finished_at?:string|null;completed_at?:string|null;error?:string|null;steps?:MissionStep[];metadata?:Record<string,unknown>};
 type MissionDetail={mission?:Mission;steps?:MissionStep[]};
+type AgentFinding={id:string;agent_id:string;title:string;detail:string;confidence:number;severity:string;stance:string;evidence_ids:string[]};
+type GraphNode={id:string;domain_id:string;kind:string;label:string;description?:string|null;confidence:number;evidence_count:number;source_count:number;degree:number;degree_centrality:number;metadata:Record<string,unknown>};
+type GraphEdge={id:string;source:string;target:string;kind:string;confidence:number;evidence_ids:string[];metadata:Record<string,unknown>};
+type GraphData={investigation:{id:string;title:string;status:string};nodes:GraphNode[];edges:GraphEdge[];metrics:{nodes:number;edges:number;entities:number;observations:number;hypotheses:number;independent_sources:number;sources:string[];connected_components:number;density:number;relationship_types:Record<string,number>};analytics?:Record<string,unknown>;generated_at:string;derived:boolean};
 
 const DEFAULT_OBJECTIVE="Run a bounded scientific investigation: inspect evidence quality, analyze structure, identify opportunities, validate findings, and synthesize the next best action.";
 
 function humanize(value:string){return value.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}
 function tone(status:string){return status==="completed"?"completed":status==="failed"?"failed":status==="running"?"running":"planned"}
-function normalizeDetail(body:MissionDetail|Mission):Mission{
-  if("mission" in body&&body.mission)return {...body.mission,steps:Array.isArray(body.steps)?body.steps:body.mission.steps??[]};
-  return body as Mission;
-}
+function normalizeDetail(body:MissionDetail|Mission):Mission{if("mission" in body&&body.mission)return {...body.mission,steps:Array.isArray(body.steps)?body.steps:body.mission.steps??[]};return body as Mission}
 
 export default function InvestigationMissionActions({ investigationId }: { investigationId: string }) {
   const router=useRouter();
   const [missions,setMissions]=useState<Mission[]>([]);
   const [selected,setSelected]=useState<Mission|null>(null);
+  const [selectedStepId,setSelectedStepId]=useState<string|null>(null);
   const [objective,setObjective]=useState(DEFAULT_OBJECTIVE);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState<string|null>(null);
   const [showComposer,setShowComposer]=useState(false);
+  const [graph,setGraph]=useState<GraphData|null>(null);
+  const [findings,setFindings]=useState<AgentFinding[]>([]);
 
-  async function hydrateMission(mission:Mission){
-    const r=await fetch(`/api/missions/${mission.id}`,{cache:"no-store"});
-    const b=await r.json();
-    if(!r.ok)throw new Error(b?.detail??"Could not load mission plan");
-    return normalizeDetail(b);
-  }
+  async function hydrateMission(mission:Mission){const r=await fetch(`/api/missions/${mission.id}`,{cache:"no-store"});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Could not load mission plan");return normalizeDetail(b)}
+  async function loadScienceContext(){try{const [graphResponse,findingResponse]=await Promise.all([fetch(`/api/investigations/${investigationId}/graph`,{cache:"no-store"}),fetch(`/api/investigations/${investigationId}/agent-findings`,{cache:"no-store"})]);if(graphResponse.ok)setGraph(await graphResponse.json());if(findingResponse.ok){const body=await findingResponse.json();setFindings(Array.isArray(body)?body:[])}}catch{/* Mission Control remains usable if graph focus cannot load. */}}
+  async function load(preferredId?:string){try{const r=await fetch(`/api/investigations/${investigationId}/missions`,{cache:"no-store"});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Could not load missions");const list=Array.isArray(b)?b:[];setMissions(list);if(!list.length){setSelected(null);setSelectedStepId(null);return}const target=list.find((m:Mission)=>m.id===(preferredId??selected?.id))??list[0];const detail=await hydrateMission(target);setSelected(detail);const detailSteps=detail.steps??[];const defaultStep=detailSteps.find(s=>s.status==="running")??detailSteps.at(-1)??detailSteps[0];setSelectedStepId(defaultStep?.id??(defaultStep?`${defaultStep.agent_id}-${defaultStep.sequence??defaultStep.position??0}`:null))}catch(error){setMessage(error instanceof Error?error.message:"Could not load missions")}}
+  useEffect(()=>{void load();void loadScienceContext()},[investigationId]);
 
-  async function load(preferredId?:string){
-    try{
-      const r=await fetch(`/api/investigations/${investigationId}/missions`,{cache:"no-store"});
-      const b=await r.json();
-      if(!r.ok)throw new Error(b?.detail??"Could not load missions");
-      const list=Array.isArray(b)?b:[];
-      setMissions(list);
-      if(!list.length){setSelected(null);return;}
-      const target=list.find((m:Mission)=>m.id===(preferredId??selected?.id))??list[0];
-      setSelected(await hydrateMission(target));
-    }catch(error){setMessage(error instanceof Error?error.message:"Could not load missions")}
-  }
-  useEffect(()=>{void load()},[investigationId]);
-
-  async function selectMission(mission:Mission){setMessage(null);try{setSelected(await hydrateMission(mission))}catch(error){setMessage(error instanceof Error?error.message:"Could not load mission")}}
-  async function createMission(){setBusy(true);setMessage(null);try{const r=await fetch(`/api/investigations/${investigationId}/missions`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({objective,metadata:{created_from:"mission_control"}})});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Mission creation failed");const mission=normalizeDetail(b);setShowComposer(false);setMessage("Mission planned and recorded by the Kernel.");await load(mission.id);router.refresh();}catch(error){setMessage(error instanceof Error?error.message:"Mission creation failed")}finally{setBusy(false)}}
-  async function runMission(missionId:string){setBusy(true);setMessage(null);try{const r=await fetch(`/api/missions/${missionId}/run`,{method:"POST"});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Mission execution failed");const mission=normalizeDetail(b);setSelected(mission);setMessage(mission.status==="completed"?"Mission completed. Every step is linked to its audited task and findings.":`Mission ended with status ${humanize(mission.status)}.`);await load(mission.id);router.refresh();}catch(error){setMessage(error instanceof Error?error.message:"Mission execution failed")}finally{setBusy(false)}}
+  async function selectMission(mission:Mission){setMessage(null);try{const detail=await hydrateMission(mission);setSelected(detail);const first=detail.steps?.at(-1)??detail.steps?.[0];setSelectedStepId(first?.id??(first?`${first.agent_id}-${first.sequence??first.position??0}`:null))}catch(error){setMessage(error instanceof Error?error.message:"Could not load mission")}}
+  async function createMission(){setBusy(true);setMessage(null);try{const r=await fetch(`/api/investigations/${investigationId}/missions`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({objective,metadata:{created_from:"mission_control"}})});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Mission creation failed");const mission=normalizeDetail(b);setShowComposer(false);setMessage("Mission planned and recorded by the Kernel.");await load(mission.id);await loadScienceContext();router.refresh()}catch(error){setMessage(error instanceof Error?error.message:"Mission creation failed")}finally{setBusy(false)}}
+  async function runMission(missionId:string){setBusy(true);setMessage(null);try{const r=await fetch(`/api/missions/${missionId}/run`,{method:"POST"});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Mission execution failed");const mission=normalizeDetail(b);setSelected(mission);setMessage(mission.status==="completed"?"Mission completed. Every step is linked to its audited task and findings.":`Mission ended with status ${humanize(mission.status)}.`);await load(mission.id);await loadScienceContext();router.refresh()}catch(error){setMessage(error instanceof Error?error.message:"Mission execution failed")}finally{setBusy(false)}}
 
   const steps=selected?.steps??[];
   const completed=steps.filter(s=>s.status==="completed").length;
   const currentStep=steps.find(s=>s.status==="running")??steps.find(s=>s.status!=="completed")??steps.at(-1);
   const progress=steps.length?Math.round((completed/steps.length)*100):0;
   const totalFindings=useMemo(()=>steps.reduce((sum,step)=>sum+(step.finding_ids?.length??0),0),[steps]);
+  const selectedStep=steps.find((step,index)=>(step.id??`${step.agent_id}-${step.sequence??step.position??index}`)===selectedStepId)??currentStep;
+  const selectedFindingIds=new Set(selectedStep?.finding_ids??[]);
+  const selectedFindings=useMemo(()=>findings.filter(f=>selectedFindingIds.has(f.id)),[findings,selectedStepId,selectedStep?.finding_ids]);
+  const selectedEvidenceIds=useMemo(()=>new Set(selectedFindings.flatMap(f=>f.evidence_ids??[])),[selectedFindings]);
+  const focusedGraph=useMemo(()=>{
+    if(!graph||!selectedStep)return graph;
+    if(!selectedEvidenceIds.size)return graph;
+    const focusedEdges=graph.edges.filter(edge=>edge.evidence_ids.some(id=>selectedEvidenceIds.has(id)));
+    const nodeIds=new Set<string>();
+    focusedEdges.forEach(edge=>{nodeIds.add(edge.source);nodeIds.add(edge.target)});
+    graph.nodes.forEach(node=>{if(node.kind==="investigation"||selectedEvidenceIds.has(node.domain_id))nodeIds.add(node.id)});
+    const nodes=graph.nodes.filter(node=>nodeIds.has(node.id));
+    if(nodes.length<=1)return graph;
+    const relationshipTypes:Record<string,number>={};focusedEdges.forEach(edge=>{relationshipTypes[edge.kind]=(relationshipTypes[edge.kind]??0)+1});
+    return {...graph,nodes,edges:focusedEdges,analytics:undefined,metrics:{...graph.metrics,nodes:nodes.length,edges:focusedEdges.length,entities:nodes.filter(n=>["entity","concept","organization","company","person","topic"].includes(n.kind)).length,observations:nodes.filter(n=>n.kind==="observation").length,hypotheses:nodes.filter(n=>n.kind==="hypothesis").length,connected_components:focusedEdges.length?1:nodes.length,density:nodes.length>1?(2*focusedEdges.length)/(nodes.length*(nodes.length-1)):0,relationship_types:relationshipTypes}};
+  },[graph,selectedStepId,selectedEvidenceIds]);
 
-  return <div className="missionControlConsole">
-    <div className="missionConsoleHeader">
-      <div className="missionIdentity"><span className="labLabel">Mission control</span><div className="missionTitleRow"><h3>{selected?selected.objective:"Plan the next scientific mission"}</h3>{selected&&<span className={`missionStatus ${tone(selected.status)}`}>{humanize(selected.status)}</span>}</div><p>{selected?"A bounded, ordered investigation executed by registered agents and recorded by the Kernel.":"Create a persisted objective and let the mission runtime generate the auditable execution plan."}</p></div>
-      <div className="missionConsoleActions"><button onClick={()=>setShowComposer(v=>!v)} disabled={busy}>{showComposer?"Cancel":"New Mission"}</button>{selected&&<button className="missionPrimaryAction" disabled={busy||selected.status==="running"} onClick={()=>runMission(selected.id)}>{busy?"Running…":selected.status==="completed"?"Replay Mission":"Run Mission"}</button>}</div>
+  return <div className="missionGraphWorkspace">
+    <div className="missionControlConsole">
+      <div className="missionConsoleHeader"><div className="missionIdentity"><span className="labLabel">Mission control</span><div className="missionTitleRow"><h3>{selected?selected.objective:"Plan the next scientific mission"}</h3>{selected&&<span className={`missionStatus ${tone(selected.status)}`}>{humanize(selected.status)}</span>}</div><p>{selected?"A bounded, ordered investigation executed by registered agents and recorded by the Kernel.":"Create a persisted objective and let the mission runtime generate the auditable execution plan."}</p></div><div className="missionConsoleActions"><button onClick={()=>setShowComposer(v=>!v)} disabled={busy}>{showComposer?"Cancel":"New Mission"}</button>{selected&&<button className="missionPrimaryAction" disabled={busy||selected.status==="running"} onClick={()=>runMission(selected.id)}>{busy?"Running…":selected.status==="completed"?"Replay Mission":"Run Mission"}</button>}</div></div>
+      {showComposer&&<div className="missionComposer"><label><span>Scientific objective</span><textarea value={objective} onChange={e=>setObjective(e.target.value)} rows={3}/></label><div><small>The runtime creates the ordered agent plan. Agents remain bounded by registered capabilities and every action is Kernel-recorded.</small><button className="missionPrimaryAction" disabled={busy||!objective.trim()} onClick={createMission}>{busy?"Planning…":"Create Mission"}</button></div></div>}
+      {selected&&<><div className="missionProgressBand"><div><span>Mission progress</span><strong>{completed} / {steps.length}</strong><small>steps completed</small></div><div className="missionProgressTrack"><i style={{width:`${progress}%`}}/></div><div className="missionProgressMeta"><span>{progress}%</span><small>{selected.id.slice(0,8)} · {totalFindings} findings</small></div></div><div className="missionStepRail">{steps.length?steps.map((step,index)=>{const key=step.id??`${step.agent_id}-${step.sequence??step.position??index}`;return <button key={key} className={`missionRailStep ${tone(step.status??"pending")} ${key===selectedStepId?"selected":""}`} title={`Inspect ${humanize(step.agent_id)} on the canonical graph`} onClick={()=>setSelectedStepId(key)}><i>{step.status==="completed"?"✓":step.status==="failed"?"!":step.sequence??index+1}</i><span><strong>{humanize(step.agent_id)}</strong><small>{humanize(step.status??"pending")}</small></span></button>}):<div className="missionPlanLoading"><strong>Execution plan unavailable</strong><span>The mission exists, but its ordered steps could not be loaded.</span></div>}</div><div className="missionConsoleLower"><section className="missionCurrentStep"><span className="labLabel">Selected graph step</span>{selectedStep?<><div className="missionCurrentHead"><b>{selectedStep.sequence??selectedStep.position??1}</b><div><h4>{humanize(selectedStep.agent_id)}</h4><p>{humanize(selectedStep.task_type)}</p></div><span className={`missionStatus ${tone(selectedStep.status??"pending")}`}>{humanize(selectedStep.status??"pending")}</span></div><div className="missionStepEvidence"><div><span>Task</span><strong>{selectedStep.task_id?selectedStep.task_id.slice(0,8):"Not created"}</strong></div><div><span>Findings</span><strong>{selectedStep.finding_ids?.length??0}</strong></div><div><span>Evidence links</span><strong>{selectedEvidenceIds.size}</strong></div></div>{selectedStep.error&&<p className="missionStepError">{selectedStep.error}</p>}</>:<p className="missionEmpty">No mission step selected.</p>}</section><section className="missionHistoryPanel"><div className="missionHistoryHead"><span className="labLabel">Mission history</span><small>{missions.length} persisted</small></div><div className="missionHistoryList">{missions.slice(0,5).map(m=><button key={m.id} className={selected.id===m.id?"active":""} onClick={()=>void selectMission(m)}><i className={tone(m.status)}/><span><strong>{m.objective}</strong><small>{humanize(m.status)}{m.created_at?` · ${new Date(m.created_at).toLocaleString()}`:""}</small></span><em>{m.id.slice(0,8)}</em></button>)}</div></section></div></>}
+      {!selected&&!showComposer&&<div className="missionZeroState"><strong>No persisted mission yet</strong><p>Create a scientific objective to generate an ordered, auditable agent plan.</p></div>}
+      {message&&<p className="missionActionMessage">{message}</p>}
     </div>
 
-    {showComposer&&<div className="missionComposer"><label><span>Scientific objective</span><textarea value={objective} onChange={e=>setObjective(e.target.value)} rows={3}/></label><div><small>The runtime creates the ordered agent plan. Agents remain bounded by registered capabilities and every action is Kernel-recorded.</small><button className="missionPrimaryAction" disabled={busy||!objective.trim()} onClick={createMission}>{busy?"Planning…":"Create Mission"}</button></div></div>}
-
-    {selected&&<>
-      <div className="missionProgressBand"><div><span>Mission progress</span><strong>{completed} / {steps.length}</strong><small>steps completed</small></div><div className="missionProgressTrack"><i style={{width:`${progress}%`}}/></div><div className="missionProgressMeta"><span>{progress}%</span><small>{selected.id.slice(0,8)} · {totalFindings} findings</small></div></div>
-      <div className="missionStepRail">{steps.length?steps.map((step,index)=><button key={step.id??`${step.agent_id}-${index}`} className={`missionRailStep ${tone(step.status??"pending")}`} title={humanize(step.task_type)}><i>{step.status==="completed"?"✓":step.status==="failed"?"!":step.sequence??index+1}</i><span><strong>{humanize(step.agent_id)}</strong><small>{humanize(step.status??"pending")}</small></span></button>):<div className="missionPlanLoading"><strong>Execution plan unavailable</strong><span>The mission exists, but its ordered steps could not be loaded.</span></div>}</div>
-      <div className="missionConsoleLower">
-        <section className="missionCurrentStep"><span className="labLabel">{selected.status==="completed"?"Final step":"Current step"}</span>{currentStep?<><div className="missionCurrentHead"><b>{currentStep.sequence??currentStep.position??1}</b><div><h4>{humanize(currentStep.agent_id)}</h4><p>{humanize(currentStep.task_type)}</p></div><span className={`missionStatus ${tone(currentStep.status??"pending")}`}>{humanize(currentStep.status??"pending")}</span></div><div className="missionStepEvidence"><div><span>Task</span><strong>{currentStep.task_id?currentStep.task_id.slice(0,8):"Not created"}</strong></div><div><span>Findings</span><strong>{currentStep.finding_ids?.length??0}</strong></div><div><span>Kernel state</span><strong>{currentStep.task_id?"Recorded":"Pending"}</strong></div></div>{currentStep.error&&<p className="missionStepError">{currentStep.error}</p>}</>:<p className="missionEmpty">No mission step selected.</p>}</section>
-        <section className="missionHistoryPanel"><div className="missionHistoryHead"><span className="labLabel">Mission history</span><small>{missions.length} persisted</small></div><div className="missionHistoryList">{missions.slice(0,5).map(m=><button key={m.id} className={selected.id===m.id?"active":""} onClick={()=>void selectMission(m)}><i className={tone(m.status)}/><span><strong>{m.objective}</strong><small>{humanize(m.status)}{m.created_at?` · ${new Date(m.created_at).toLocaleString()}`:""}</small></span><em>{m.id.slice(0,8)}</em></button>)}</div></section>
-      </div>
-    </>}
-    {!selected&&!showComposer&&<div className="missionZeroState"><strong>No persisted mission yet</strong><p>Create a scientific objective to generate an ordered, auditable agent plan.</p></div>}
-    {message&&<p className="missionActionMessage">{message}</p>}
+    {focusedGraph&&selectedStep&&<section className="missionGraphFocus"><div className="missionGraphFocusHeader"><div><span className="labLabel">Mission → canonical graph</span><h3>{humanize(selectedStep.agent_id)} evidence footprint</h3><p>{selectedEvidenceIds.size?`Showing the canonical graph relationships backed by ${selectedEvidenceIds.size} evidence link(s) referenced by this step's ${selectedFindings.length} finding(s).`:"This step has no explicit evidence-linked findings yet, so the full canonical investigation graph remains visible."}</p></div><div className="missionGraphFocusStats"><span><b>{selectedFindings.length}</b> findings</span><span><b>{selectedEvidenceIds.size}</b> evidence</span><span><b>{focusedGraph.nodes.length}</b> nodes</span><span><b>{focusedGraph.edges.length}</b> edges</span></div></div><GalileoGraph graph={focusedGraph as any}/></section>}
   </div>;
 }
