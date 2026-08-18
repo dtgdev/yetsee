@@ -43,6 +43,7 @@ class InvestigationMissionStep(UUIDMixin, TimestampMixin, Base):
     agent_id: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     task_type: Mapped[str] = mapped_column(String(100), nullable=False)
     task_id: Mapped[str | None] = mapped_column(ForeignKey("agent_tasks.id"), index=True)
+    command_id: Mapped[str | None] = mapped_column(String(36), index=True)
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True, nullable=False)
     input_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     result_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
