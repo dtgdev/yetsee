@@ -6,8 +6,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agent_orchestration.engine import run_agent
-from app.kernel.commands import current_command_context
+from app.kernel.commands import KernelCommand, current_command_context, execute_command
 from app.kernel.events import publish_event
 from app.models.agent import AgentFinding
 from app.models.investigation import Investigation
@@ -22,8 +21,6 @@ DEFAULT_MISSION_PLAN = (
     ("quality_agent", "REVIEW_INVESTIGATION"),
     ("investigation_agent", "SYNTHESIZE_INVESTIGATION"),
 )
-
-TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 
 
 def _utcnow() -> datetime:
@@ -138,8 +135,8 @@ def run_mission(db: Session, mission_id: str) -> dict[str, Any]:
         raise ValueError("Mission is already running")
     if mission.status == "completed":
         return get_mission(db, mission_id)
-    if mission.status in {"cancelled"}:
-        raise ValueError(f"Mission cannot run from status {mission.status}")
+    if mission.status == "cancelled":
+        raise ValueError("Cancelled mission cannot be run")
 
     steps = list(
         db.scalars(
@@ -151,9 +148,9 @@ def run_mission(db: Session, mission_id: str) -> dict[str, Any]:
     if not steps:
         raise ValueError("Mission has no steps")
 
-    command_id, correlation_id = _command_lineage()
-    if command_id:
-        mission.command_id = command_id
+    parent_command_id, correlation_id = _command_lineage()
+    if parent_command_id:
+        mission.command_id = parent_command_id
     if correlation_id:
         mission.correlation_id = correlation_id
     mission.status = "running"
@@ -172,11 +169,32 @@ def run_mission(db: Session, mission_id: str) -> dict[str, Any]:
     for step in steps:
         if step.status == "completed":
             continue
-        step.command_id = command_id
+
         step.status = "running"
         step.error = None
         step.started_at = _utcnow()
         step.finished_at = None
+        nested_command = KernelCommand(
+            command_type="RunInvestigationAgent",
+            aggregate_type="investigation",
+            aggregate_id=mission.investigation_id,
+            payload={
+                "agent_id": step.agent_id,
+                "task_type": step.task_type,
+                "inputs": {
+                    **(step.input_json or {}),
+                    "mission_id": mission.id,
+                    "mission_step_id": step.id,
+                    "mission_objective": mission.objective,
+                    "mission_sequence": step.sequence,
+                },
+            },
+            actor_type="system",
+            actor_id="mission_runtime",
+            correlation_id=mission.correlation_id or correlation_id or mission.id,
+            causation_id=parent_command_id,
+        )
+        step.command_id = nested_command.id
         publish_event(
             db,
             event_type="InvestigationMissionStepStarted",
@@ -188,26 +206,13 @@ def run_mission(db: Session, mission_id: str) -> dict[str, Any]:
                 "sequence": step.sequence,
                 "agent_id": step.agent_id,
                 "task_type": step.task_type,
+                "command_id": nested_command.id,
             },
         )
         db.commit()
 
         try:
-            task = run_agent(
-                db,
-                agent_id=step.agent_id,
-                task_type=step.task_type,
-                target_type="investigation",
-                target_id=mission.investigation_id,
-                inputs={
-                    **(step.input_json or {}),
-                    "mission_id": mission.id,
-                    "mission_step_id": step.id,
-                    "mission_objective": mission.objective,
-                    "mission_sequence": step.sequence,
-                },
-                requested_by=f"mission:{mission.id}",
-            )
+            task = execute_command(db, nested_command)
             step = db.get(InvestigationMissionStep, step.id)
             step.task_id = task.id
             step.status = task.status
@@ -223,7 +228,11 @@ def run_mission(db: Session, mission_id: str) -> dict[str, Any]:
             )
             publish_event(
                 db,
-                event_type="InvestigationMissionStepCompleted" if task.status == "completed" else "InvestigationMissionStepFailed",
+                event_type=(
+                    "InvestigationMissionStepCompleted"
+                    if task.status == "completed"
+                    else "InvestigationMissionStepFailed"
+                ),
                 aggregate_type="investigation",
                 aggregate_id=mission.investigation_id,
                 payload={
@@ -232,6 +241,7 @@ def run_mission(db: Session, mission_id: str) -> dict[str, Any]:
                     "sequence": step.sequence,
                     "agent_id": step.agent_id,
                     "task_id": task.id,
+                    "command_id": nested_command.id,
                     "status": task.status,
                     "finding_ids": step.finding_ids,
                 },
