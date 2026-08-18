@@ -35,6 +35,17 @@ type InvestigationGraph = {
   nodes:{id:string;domain_id:string;kind:string;label:string;description?:string|null;confidence:number;evidence_count:number;source_count:number;degree:number;degree_centrality:number;metadata:Record<string,any>}[];
   edges:{id:string;source:string;target:string;kind:string;confidence:number;evidence_ids:string[];metadata:Record<string,any>}[];
   metrics:{nodes:number;edges:number;entities:number;observations:number;hypotheses:number;independent_sources:number;sources:string[];connected_components:number;density:number;relationship_types:Record<string,number>};
+  analytics?:{
+    degree_centrality?:Record<string,number>;
+    betweenness_centrality?:Record<string,number>;
+    closeness_centrality?:Record<string,number>;
+    pagerank?:Record<string,number>;
+    communities?:{id:number;size:number;node_ids:string[];semantic_nodes?:{node_id:string;domain_id?:string;label:string;kind:string}[];kinds:Record<string,number>}[];
+    bridge_nodes?:{node_id:string;domain_id?:string;label:string;kind:string;betweenness:number;communities_connected:number;articulation_point:boolean;evidence_count?:number}[];
+    semantic_central_nodes?:{node_id:string;domain_id?:string;label:string;kind:string;score:number;evidence_count:number;source_count:number}[];
+    top_semantic_nodes?:{node_id:string;domain_id?:string;label:string;kind:string;score:number;evidence_count:number;source_count:number}[];
+    density?:number;
+  };
   generated_at:string;derived:boolean;
 };
 
@@ -113,16 +124,30 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
       <ResearchPanel title="Evidence challenges" subtitle="Agent findings that expose repetition, missing sources and counter-evidence gaps."><div className="findingListV2">{latestFindings.map(f=><div key={f.id}><span className={`findingDot ${f.severity}`}>!</span><div><strong>{f.title}</strong><p>{f.detail}</p><small>{f.agent_id} · {f.category}</small></div><div><b>{Math.round(f.confidence*100)}%</b><span>{f.evidence_ids.length} evidence</span></div></div>)}</div></ResearchPanel>
     </div>;
   } else if(active==="structure"){
+    const graphAnalytics=investigationGraph.analytics??{};
+    const graphCommunities=graphAnalytics.communities??[];
+    const graphBridges=graphAnalytics.bridge_nodes??[];
+    const graphCentral=graphAnalytics.semantic_central_nodes??graphAnalytics.top_semantic_nodes??[];
     body=<div className="lensWorkspace">
-      <ResearchPanel title="Investigation Graph" subtitle="A canonical, evidence-derived projection of this investigation. Select any node to inspect its scientific context." action={<StatusPill tone="green">derived · deterministic</StatusPill>}>
+      <div className="structureScientificHeader">
+        <div><span>STRUCTURAL SCIENCE</span><h2>Canonical Investigation Graph</h2><p>Explore evidence-backed topology, semantic communities and bridge concepts without changing canonical knowledge.</p></div>
+        <div className="structureTrust"><StatusPill tone="green">derived</StatusPill><StatusPill tone="blue">deterministic</StatusPill><StatusPill tone="violet">replayable</StatusPill></div>
+      </div>
+      <ResearchMetrics>
+        <Metric label="Semantic concepts" value={graphCentral.length} note="PageRank-ranked domain nodes" tone="blue"/>
+        <Metric label="Communities" value={graphCommunities.length} note="structural neighborhoods" tone="violet"/>
+        <Metric label="Bridge concepts" value={graphBridges.length} note="cross-community connectors" tone="amber"/>
+        <Metric label="Independent sources" value={investigationGraph.metrics.independent_sources} note={investigationGraph.metrics.sources.join(" · ")||"none"} tone="green"/>
+      </ResearchMetrics>
+      <ResearchPanel title="Investigation Graph" subtitle="Select a node to inspect scientific importance, evidence paths, structural role and provenance." action={<span className="structureGenerated">Generated {fmt(investigationGraph.generated_at)}</span>}>
         <GalileoGraph graph={investigationGraph}/>
       </ResearchPanel>
       <div className="researchTwoCol">
-        <ResearchPanel title="Graph health" subtitle="Structural measurements are scoped to this investigation, not the global knowledge graph.">
-          <div className="graphHealthGrid"><div><span>Entities</span><strong>{investigationGraph.metrics.entities}</strong></div><div><span>Observations</span><strong>{investigationGraph.metrics.observations}</strong></div><div><span>Hypotheses</span><strong>{investigationGraph.metrics.hypotheses}</strong></div><div><span>Sources</span><strong>{investigationGraph.metrics.independent_sources}</strong></div><div><span>Components</span><strong>{investigationGraph.metrics.connected_components}</strong></div><div><span>Density</span><strong>{investigationGraph.metrics.density.toFixed(3)}</strong></div></div>
-        </ResearchPanel>
-        <ResearchPanel title="Structural interpretation" subtitle="Graph Reasoner remains a separate scientific lens over the same canonical projection.">
+        <ResearchPanel title="Structural interpretation" subtitle="Graph Reasoner is a separate scientific lens over this exact canonical projection.">
           {latestReasoning?<><div className="overviewReasoning"><strong>{pct(latestReasoning.confidence)}</strong><div><StatusPill tone={latestReasoning.confidence>=.75?"green":"amber"}>{latestReasoning.support_level}</StatusPill><p>{latestReasoning.conclusion}</p></div></div><Link className="tinyLink" href={`/investigations/${id}?lens=reasoning`}>Open reasoning lens →</Link></>:<><p className="emptyText">No reasoning result yet.</p><RunGraphReasoner investigationId={id}/></>}
+        </ResearchPanel>
+        <ResearchPanel title="Scientific cautions" subtitle="Topology is evidence-derived structure, not proof of causality.">
+          <div className="structureCautions"><div><i>1</i><span><strong>Centrality ≠ causality</strong><small>Highly connected concepts can be important without causing an observed effect.</small></span></div><div><i>2</i><span><strong>Communities are structural</strong><small>Detected neighborhoods are not automatically verified scientific categories.</small></span></div><div><i>3</i><span><strong>Evidence coverage matters</strong><small>Weakly sourced regions should trigger collection, not stronger conclusions.</small></span></div></div>
         </ResearchPanel>
       </div>
     </div>;
