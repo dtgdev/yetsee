@@ -13,6 +13,7 @@ from app.investigation_runtime.engine import (
     recalculate_hypothesis_confidence,
     transition_investigation,
 )
+from app.mission_runtime.engine import create_mission, run_mission
 from app.kernel.commands import KernelCommand, execute_command, registry
 
 
@@ -81,6 +82,24 @@ def _refresh_investigation(db: Session, command: KernelCommand):
     return refresh_investigation(db, command.aggregate_id or "")
 
 
+def _create_investigation_mission(db: Session, command: KernelCommand):
+    return create_mission(
+        db,
+        command.aggregate_id or "",
+        objective=command.payload["objective"],
+        requested_by=f"kernel:{command.actor_type}",
+        metadata=command.payload.get("metadata") or {},
+        plan=command.payload.get("plan"),
+    )
+
+
+def _run_investigation_mission(db: Session, command: KernelCommand):
+    mission_id = command.payload.get("mission_id") or command.aggregate_id
+    if not mission_id:
+        raise ValueError("mission_id is required")
+    return run_mission(db, mission_id)
+
+
 def _run_connector(db: Session, command: KernelCommand):
     connector_id = command.payload.get("connector_id") or command.aggregate_id
     if not connector_id:
@@ -129,6 +148,8 @@ HANDLERS = {
     "TransitionInvestigation": _transition_investigation,
     "RunInvestigationAgent": _run_investigation_agent,
     "RefreshInvestigation": _refresh_investigation,
+    "CreateInvestigationMission": _create_investigation_mission,
+    "RunInvestigationMission": _run_investigation_mission,
     "RunConnector": _run_connector,
     "RunReasoner": _run_reasoner,
 }
