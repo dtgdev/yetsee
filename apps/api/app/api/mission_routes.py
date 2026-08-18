@@ -35,7 +35,7 @@ def create_investigation_mission(
     if db.get(Investigation, investigation_id) is None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     try:
-        return execute_command(
+        mission = execute_command(
             db,
             KernelCommand(
                 command_type="CreateInvestigationMission",
@@ -50,6 +50,8 @@ def create_investigation_mission(
                 actor_id="api",
             ),
         )
+        db.refresh(mission)
+        return mission
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -76,7 +78,7 @@ def mission_detail(mission_id: str, db: DB):
 @router.post("/missions/{mission_id}/run")
 def run_investigation_mission(mission_id: str, db: DB):
     try:
-        return execute_command(
+        execute_command(
             db,
             KernelCommand(
                 command_type="RunInvestigationMission",
@@ -87,6 +89,7 @@ def run_investigation_mission(mission_id: str, db: DB):
                 actor_id="api",
             ),
         )
+        return get_mission(db, mission_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Mission not found") from exc
     except ValueError as exc:
