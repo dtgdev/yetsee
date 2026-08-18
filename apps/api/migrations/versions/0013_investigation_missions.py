@@ -42,6 +42,7 @@ def upgrade() -> None:
         sa.Column("agent_id", sa.String(length=100), nullable=False),
         sa.Column("task_type", sa.String(length=100), nullable=False),
         sa.Column("task_id", sa.String(length=36), nullable=True),
+        sa.Column("command_id", sa.String(length=36), nullable=True),
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("input_json", sa.JSON(), nullable=False),
         sa.Column("result_json", sa.JSON(), nullable=False),
@@ -58,12 +59,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("mission_id", "sequence", name="uq_mission_step_sequence"),
     )
-    for col in ("mission_id", "investigation_id", "agent_id", "task_id", "status", "started_at", "finished_at"):
+    for col in ("mission_id", "investigation_id", "agent_id", "task_id", "command_id", "status", "started_at", "finished_at"):
         op.create_index(op.f("ix_investigation_mission_steps_" + col), "investigation_mission_steps", [col], unique=False)
 
 
 def downgrade() -> None:
-    for col in reversed(("mission_id", "investigation_id", "agent_id", "task_id", "status", "started_at", "finished_at")):
+    for col in reversed(("mission_id", "investigation_id", "agent_id", "task_id", "command_id", "status", "started_at", "finished_at")):
         op.drop_index(op.f("ix_investigation_mission_steps_" + col), table_name="investigation_mission_steps")
     op.drop_table("investigation_mission_steps")
     for col in reversed(("investigation_id", "status", "correlation_id", "command_id", "started_at", "finished_at")):
