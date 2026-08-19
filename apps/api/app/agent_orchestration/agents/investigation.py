@@ -95,7 +95,10 @@ class InvestigationAgent:
         )
 
         draft = FindingDraft(
-            "cross_agent_synthesis",
+            # Preserve the established external category contract. Phase 5's richer
+            # cross-agent structure lives in metadata/output rather than renaming
+            # the finding category consumed by existing APIs, tests, and clients.
+            "investigation_synthesis",
             "Cross-agent scientific synthesis",
             detail,
             "warning" if synthesis["contradiction_count"] or synthesis["critical_count"] else "info",
@@ -103,6 +106,7 @@ class InvestigationAgent:
             confidence,
             synthesis["evidence_ids"],
             {
+                "synthesis_type": "cross_agent",
                 "recommendation": recommendation,
                 "mission_id": context.inputs.get("mission_id"),
                 "mission_step_id": context.inputs.get("mission_step_id"),
