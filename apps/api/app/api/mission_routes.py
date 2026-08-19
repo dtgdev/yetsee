@@ -9,8 +9,8 @@ from app.api.deps import DB
 from app.kernel import KernelCommand, execute_command
 from app.mission_runtime.decisions import create_mission_from_decision, list_scientific_decisions, propose_scientific_decision
 from app.mission_runtime.engine import get_mission, list_missions
+from app.mission_runtime.resolutions import assess_scientific_resolution, list_scientific_resolutions
 from app.models.investigation import Investigation
-
 
 router = APIRouter()
 
@@ -32,11 +32,7 @@ def create_investigation_mission(investigation_id: str, request: MissionCreateRe
     if db.get(Investigation, investigation_id) is None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     try:
-        mission = execute_command(db, KernelCommand(
-            command_type="CreateInvestigationMission", aggregate_type="investigation", aggregate_id=investigation_id,
-            payload={"objective": request.objective, "metadata": request.metadata, "plan": [item.model_dump() for item in request.plan] if request.plan else None},
-            actor_type="human", actor_id="api",
-        ))
+        mission = execute_command(db, KernelCommand(command_type="CreateInvestigationMission", aggregate_type="investigation", aggregate_id=investigation_id, payload={"objective": request.objective, "metadata": request.metadata, "plan": [item.model_dump() for item in request.plan] if request.plan else None}, actor_type="human", actor_id="api"))
         db.refresh(mission)
         return mission
     except ValueError as exc:
@@ -92,3 +88,20 @@ def decision_create_mission(decision_id: str, db: DB):
         return create_mission_from_decision(db, decision_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/decisions/{decision_id}/resolution")
+def decision_resolution(decision_id: str, db: DB):
+    try:
+        return assess_scientific_resolution(db, decision_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/investigations/{investigation_id}/resolutions")
+def investigation_resolutions(investigation_id: str, db: DB, limit: int = Query(default=50, ge=1, le=500)):
+    if db.get(Investigation, investigation_id) is None:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    return list_scientific_resolutions(db, investigation_id, limit=limit)
