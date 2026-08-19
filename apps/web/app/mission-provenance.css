@@ -11,260 +11,40 @@
   overflow: hidden;
 }
 
-.missionGraphFocusHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 22px;
-  padding: 18px 20px 16px;
-  border-bottom: 1px solid #edf1f5;
-  background: linear-gradient(180deg, #fcfdff 0%, #fff 100%);
-}
+.missionGraphFocusHeader { display:flex;align-items:flex-start;justify-content:space-between;gap:22px;padding:18px 20px 16px;border-bottom:1px solid #edf1f5;background:linear-gradient(180deg,#fcfdff 0%,#fff 100%); }
+.missionGraphFocusHeader > div:first-child { min-width:0;max-width:720px; }
+.missionGraphFocusHeader .labLabel { display:block;margin-bottom:6px;color:#69788d;font-size:7px;font-weight:800;letter-spacing:.13em;text-transform:uppercase; }
+.missionGraphFocusHeader h3 { margin:0;color:#172033;font-size:15px;line-height:1.3;letter-spacing:-.02em; }
+.missionGraphFocusHeader p { margin:6px 0 0;color:#718096;font-size:8px;line-height:1.55; }
+.missionGraphFocusStats { display:grid;grid-template-columns:repeat(4,minmax(54px,1fr));gap:6px;min-width:275px; }
+.missionGraphFocusStats span { display:grid;gap:2px;border:1px solid #e7ecf2;border-radius:8px;background:#fafcff;padding:8px 9px;color:#8490a0;font-size:6px;text-transform:uppercase;letter-spacing:.06em; }
+.missionGraphFocusStats b { color:#253248;font-size:12px;letter-spacing:-.02em; }
 
-.missionGraphFocusHeader > div:first-child {
-  min-width: 0;
-  max-width: 720px;
-}
+.missionNoEvidenceContext { display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:14px 20px 0;border:1px solid #f0d9a6;border-radius:9px;background:#fffaf0;padding:10px 12px;color:#735b2d;font-size:7px;line-height:1.45; }
+.missionNoEvidenceContext strong { margin-right:4px;color:#5d461c;font-size:8px; }
+.missionNoEvidenceContext span { border:1px solid #ead9b5;border-radius:999px;background:#fff;padding:3px 7px;font-weight:750; }
+.missionNoEvidenceContext i { color:#b08b45;font-style:normal; }
+.missionNoEvidenceContext p { flex-basis:100%;margin:2px 0 0;color:#8a7449;font-size:7px; }
 
-.missionGraphFocusHeader .labLabel {
-  display: block;
-  margin-bottom: 6px;
-  color: #69788d;
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-}
+.missionFindingProvenance { position:relative;padding:16px 20px 18px;border-bottom:1px solid #e9eef4;background:#fbfcfe; }
+.missionFindingProvenance::before { display:inline-flex;align-items:center;margin-bottom:13px;border:1px solid #dce6f2;border-radius:999px;background:#fff;padding:5px 9px;color:#48627f;content:"Finding  →  Evidence  →  Canonical Graph";font-size:6px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 2px 7px rgba(25,49,83,.035); }
+.missionFindingHead { display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:10px; }
+.missionFindingHead > div { display:grid;gap:3px; }
+.missionFindingHead .labLabel { color:#7b8798;font-size:6px;font-weight:800;letter-spacing:.12em;text-transform:uppercase; }
+.missionFindingHead strong { color:#2c394d;font-size:9px; }
+.missionFindingHead > button { border:1px solid #dce5ef;border-radius:6px;background:#fff;padding:6px 9px;color:#4e6077;font:inherit;font-size:7px;font-weight:700;cursor:pointer; }
+.missionFindingHead > button:hover { border-color:#b8c8da;background:#f7faff; }
+.missionFindingList { display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px; }
+.missionFindingList > button { position:relative;display:grid;min-width:0;gap:6px;border:1px solid #e0e7ef;border-radius:9px;background:#fff;padding:12px 13px;color:inherit;font:inherit;text-align:left;cursor:pointer;box-shadow:0 2px 8px rgba(29,46,74,.025);transition:border-color 120ms ease,box-shadow 120ms ease,transform 120ms ease,background 120ms ease; }
+.missionFindingList > button:hover { transform:translateY(-1px);border-color:#b9c9db;box-shadow:0 5px 14px rgba(29,46,74,.055); }
+.missionFindingList > button.selected { border-color:#8eb5f5;background:linear-gradient(180deg,#f8fbff 0%,#f2f7ff 100%);box-shadow:0 0 0 3px rgba(37,99,235,.07); }
+.missionFindingList > button.selected::after { position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:#3478e5;box-shadow:0 0 0 3px rgba(52,120,229,.09);content:""; }
+.missionFindingTone { display:inline-flex;width:fit-content;align-items:center;border:1px solid #dfe6ee;border-radius:999px;background:#f6f8fb;padding:3px 7px;color:#64748b;font-size:6px;font-weight:800;letter-spacing:.07em;text-transform:uppercase; }
+.missionFindingList > button strong { padding-right:14px;color:#1f2b3d;font-size:9px;line-height:1.35; }
+.missionFindingList > button p { display:-webkit-box;overflow:hidden;margin:0;color:#6f7d90;font-size:7px;line-height:1.5;-webkit-box-orient:vertical;-webkit-line-clamp:3; }
+.missionFindingList > button small { margin-top:2px;border-top:1px solid #edf1f5;padding-top:7px;color:#8390a1;font-size:6px;font-weight:650; }
+.missionFindingList > button.selected small { border-color:#d9e7fb;color:#55708f; }
+.missionGraphFocus > .galileoGraph,.missionGraphFocus > div:last-child { border-radius:0; }
 
-.missionGraphFocusHeader h3 {
-  margin: 0;
-  color: #172033;
-  font-size: 15px;
-  line-height: 1.3;
-  letter-spacing: -.02em;
-}
-
-.missionGraphFocusHeader p {
-  margin: 6px 0 0;
-  color: #718096;
-  font-size: 8px;
-  line-height: 1.55;
-}
-
-.missionGraphFocusStats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(54px, 1fr));
-  gap: 6px;
-  min-width: 275px;
-}
-
-.missionGraphFocusStats span {
-  display: grid;
-  gap: 2px;
-  border: 1px solid #e7ecf2;
-  border-radius: 8px;
-  background: #fafcff;
-  padding: 8px 9px;
-  color: #8490a0;
-  font-size: 6px;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-}
-
-.missionGraphFocusStats b {
-  color: #253248;
-  font-size: 12px;
-  letter-spacing: -.02em;
-}
-
-.missionFindingProvenance {
-  position: relative;
-  padding: 16px 20px 18px;
-  border-bottom: 1px solid #e9eef4;
-  background: #fbfcfe;
-}
-
-.missionFindingProvenance::before {
-  display: inline-flex;
-  align-items: center;
-  margin-bottom: 13px;
-  border: 1px solid #dce6f2;
-  border-radius: 999px;
-  background: #fff;
-  padding: 5px 9px;
-  color: #48627f;
-  content: "Finding  →  Evidence  →  Canonical Graph";
-  font-size: 6px;
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  box-shadow: 0 2px 7px rgba(25, 49, 83, .035);
-}
-
-.missionFindingHead {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 10px;
-}
-
-.missionFindingHead > div {
-  display: grid;
-  gap: 3px;
-}
-
-.missionFindingHead .labLabel {
-  color: #7b8798;
-  font-size: 6px;
-  font-weight: 800;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-
-.missionFindingHead strong {
-  color: #2c394d;
-  font-size: 9px;
-}
-
-.missionFindingHead > button {
-  border: 1px solid #dce5ef;
-  border-radius: 6px;
-  background: #fff;
-  padding: 6px 9px;
-  color: #4e6077;
-  font: inherit;
-  font-size: 7px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.missionFindingHead > button:hover {
-  border-color: #b8c8da;
-  background: #f7faff;
-}
-
-.missionFindingList {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 9px;
-}
-
-.missionFindingList > button {
-  position: relative;
-  display: grid;
-  min-width: 0;
-  gap: 6px;
-  border: 1px solid #e0e7ef;
-  border-radius: 9px;
-  background: #fff;
-  padding: 12px 13px;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(29, 46, 74, .025);
-  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease, background 120ms ease;
-}
-
-.missionFindingList > button:hover {
-  transform: translateY(-1px);
-  border-color: #b9c9db;
-  box-shadow: 0 5px 14px rgba(29, 46, 74, .055);
-}
-
-.missionFindingList > button.selected {
-  border-color: #8eb5f5;
-  background: linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, .07);
-}
-
-.missionFindingList > button.selected::after {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #3478e5;
-  box-shadow: 0 0 0 3px rgba(52, 120, 229, .09);
-  content: "";
-}
-
-.missionFindingTone {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  border: 1px solid #dfe6ee;
-  border-radius: 999px;
-  background: #f6f8fb;
-  padding: 3px 7px;
-  color: #64748b;
-  font-size: 6px;
-  font-weight: 800;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-}
-
-.missionFindingList > button strong {
-  padding-right: 14px;
-  color: #1f2b3d;
-  font-size: 9px;
-  line-height: 1.35;
-}
-
-.missionFindingList > button p {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 0;
-  color: #6f7d90;
-  font-size: 7px;
-  line-height: 1.5;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.missionFindingList > button small {
-  margin-top: 2px;
-  border-top: 1px solid #edf1f5;
-  padding-top: 7px;
-  color: #8390a1;
-  font-size: 6px;
-  font-weight: 650;
-}
-
-.missionFindingList > button.selected small {
-  border-color: #d9e7fb;
-  color: #55708f;
-}
-
-.missionGraphFocus > .galileoGraph,
-.missionGraphFocus > div:last-child {
-  border-radius: 0;
-}
-
-@media (max-width: 900px) {
-  .missionGraphFocusHeader {
-    flex-direction: column;
-  }
-
-  .missionGraphFocusStats {
-    width: 100%;
-    min-width: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .missionGraphFocusStats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .missionFindingHead {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .missionFindingList {
-    grid-template-columns: 1fr;
-  }
-}
+@media (max-width:900px) { .missionGraphFocusHeader{flex-direction:column}.missionGraphFocusStats{width:100%;min-width:0} }
+@media (max-width:640px) { .missionGraphFocusStats{grid-template-columns:repeat(2,minmax(0,1fr))}.missionFindingHead{align-items:flex-start;flex-direction:column}.missionFindingList{grid-template-columns:1fr} }
