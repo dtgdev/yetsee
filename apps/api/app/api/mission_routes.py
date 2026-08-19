@@ -9,6 +9,7 @@ from app.api.deps import DB
 from app.kernel import KernelCommand, execute_command
 from app.mission_runtime.decisions import create_mission_from_decision, list_scientific_decisions, propose_scientific_decision
 from app.mission_runtime.engine import get_mission, list_missions
+from app.mission_runtime.memory import compile_scientific_memory, list_scientific_memories
 from app.mission_runtime.resolutions import assess_scientific_resolution, list_scientific_resolutions
 from app.models.investigation import Investigation
 
@@ -105,3 +106,18 @@ def investigation_resolutions(investigation_id: str, db: DB, limit: int = Query(
     if db.get(Investigation, investigation_id) is None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     return list_scientific_resolutions(db, investigation_id, limit=limit)
+
+
+@router.post("/resolutions/{resolution_id}/memory")
+def resolution_compile_memory(resolution_id: str, db: DB):
+    try:
+        return compile_scientific_memory(db, resolution_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/investigations/{investigation_id}/memories")
+def investigation_memories(investigation_id: str, db: DB, limit: int = Query(default=50, ge=1, le=500)):
+    if db.get(Investigation, investigation_id) is None:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    return list_scientific_memories(db, investigation_id, limit=limit)
