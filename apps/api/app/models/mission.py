@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -51,3 +51,41 @@ class InvestigationMissionStep(UUIDMixin, TimestampMixin, Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class ScientificDecision(UUIDMixin, TimestampMixin, Base):
+    """Immutable scientific recommendation derived from one persisted synthesis.
+
+    Decisions do not execute themselves. A human may explicitly convert a decision
+    into a new persisted mission, preserving the decision-to-mission lineage.
+    """
+
+    __tablename__ = "scientific_decisions"
+    __table_args__ = (
+        UniqueConstraint("synthesis_finding_id", name="uq_scientific_decision_synthesis_finding"),
+    )
+
+    investigation_id: Mapped[str] = mapped_column(
+        ForeignKey("investigations.id"), index=True, nullable=False
+    )
+    mission_id: Mapped[str] = mapped_column(
+        ForeignKey("investigation_missions.id"), index=True, nullable=False
+    )
+    synthesis_finding_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_findings.id"), index=True, nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="proposed", index=True, nullable=False)
+    priority: Mapped[str] = mapped_column(String(32), default="medium", index=True, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    proposed_objective: Mapped[str] = mapped_column(Text, nullable=False)
+    source_agent_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    source_finding_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    basis_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    next_mission_id: Mapped[str | None] = mapped_column(
+        ForeignKey("investigation_missions.id"), index=True
+    )
+    command_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(36), index=True)
