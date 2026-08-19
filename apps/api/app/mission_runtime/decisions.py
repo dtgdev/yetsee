@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.mission_runtime.memory import advisory_memory_context, apply_memory_to_objective
 from app.models.agent import AgentFinding
 from app.models.mission import InvestigationMission, ScientificDecision
 
@@ -14,39 +15,14 @@ def _decision_action(synthesis: dict) -> tuple[str, str, str, str]:
     agreements = int(synthesis.get("agreement_count") or 0)
 
     if contradictions:
-        return (
-            "resolve_agent_disagreement",
-            "high",
-            "Resolve the cross-agent disagreement by testing the disputed claims against independent evidence before increasing confidence.",
-            "Resolve the detected agent disagreement: collect independent evidence for the disputed claims, inspect contradictory provenance, and re-evaluate the investigation synthesis.",
-        )
+        return ("resolve_agent_disagreement", "high", "Resolve the cross-agent disagreement by testing the disputed claims against independent evidence before increasing confidence.", "Resolve the detected agent disagreement: collect independent evidence for the disputed claims, inspect contradictory provenance, and re-evaluate the investigation synthesis.")
     if gaps:
-        return (
-            "collect_independent_evidence",
-            "high" if gaps >= 2 else "medium",
-            "Close evidence gaps before treating unsupported specialist findings as established scientific support.",
-            "Collect independent evidence for the unsupported specialist findings, attach explicit provenance, and re-run the scientific investigation team.",
-        )
+        return ("collect_independent_evidence", "high" if gaps >= 2 else "medium", "Close evidence gaps before treating unsupported specialist findings as established scientific support.", "Collect independent evidence for the unsupported specialist findings, attach explicit provenance, and re-run the scientific investigation team.")
     if evidence < 2:
-        return (
-            "expand_source_diversity",
-            "medium",
-            "The synthesis is evidence-backed but source diversity remains too narrow for a strong scientific conclusion.",
-            "Expand source diversity with independent observations, then re-run evidence quality, graph analysis, and cross-agent synthesis.",
-        )
+        return ("expand_source_diversity", "medium", "The synthesis is evidence-backed but source diversity remains too narrow for a strong scientific conclusion.", "Expand source diversity with independent observations, then re-run evidence quality, graph analysis, and cross-agent synthesis.")
     if agreements:
-        return (
-            "human_review",
-            "medium",
-            "The agents show evidence-backed agreement with no explicit contradictions or evidence gaps; preserve human review before advancing the investigation.",
-            "Review the evidence-backed cross-agent consensus and decide whether the investigation is ready for the next scientific stage.",
-        )
-    return (
-        "re_evaluate_investigation",
-        "medium",
-        "The current synthesis does not contain enough agreement, contradiction, or evidence-gap signal to justify a stronger action.",
-        "Re-evaluate the investigation with additional independent evidence and a fresh cross-agent synthesis.",
-    )
+        return ("human_review", "medium", "The agents show evidence-backed agreement with no explicit contradictions or evidence gaps; preserve human review before advancing the investigation.", "Review the evidence-backed cross-agent consensus and decide whether the investigation is ready for the next scientific stage.")
+    return ("re_evaluate_investigation", "medium", "The current synthesis does not contain enough agreement, contradiction, or evidence-gap signal to justify a stronger action.", "Re-evaluate the investigation with additional independent evidence and a fresh cross-agent synthesis.")
 
 
 def propose_scientific_decision(db: Session, mission_id: str) -> ScientificDecision:
@@ -56,14 +32,10 @@ def propose_scientific_decision(db: Session, mission_id: str) -> ScientificDecis
     if mission.status != "completed":
         raise ValueError("Scientific decisions require a completed mission")
 
-    finding = db.scalar(
-        select(AgentFinding)
-        .where(
-            AgentFinding.target_id == mission.investigation_id,
-            AgentFinding.category == "investigation_synthesis",
-        )
-        .order_by(AgentFinding.created_at.desc())
-    )
+    finding = db.scalar(select(AgentFinding).where(
+        AgentFinding.target_id == mission.investigation_id,
+        AgentFinding.category == "investigation_synthesis",
+    ).order_by(AgentFinding.created_at.desc()))
     if finding is None:
         raise ValueError("Completed mission has no investigation synthesis finding")
 
@@ -71,14 +43,13 @@ def propose_scientific_decision(db: Session, mission_id: str) -> ScientificDecis
     synthesis = metadata.get("synthesis") or {}
     if not synthesis:
         raise ValueError("Investigation synthesis has no structured cross-agent payload")
-
-    existing = db.scalar(
-        select(ScientificDecision).where(ScientificDecision.synthesis_finding_id == finding.id)
-    )
+    existing = db.scalar(select(ScientificDecision).where(ScientificDecision.synthesis_finding_id == finding.id))
     if existing is not None:
         return existing
 
     action_type, priority, rationale, objective = _decision_action(synthesis)
+    memory_context = advisory_memory_context(db, mission.investigation_id, action_type)
+    objective = apply_memory_to_objective(objective, memory_context)
     contradictions = int(synthesis.get("contradiction_count") or 0)
     gaps = int(synthesis.get("evidence_gap_count") or 0)
     evidence_backed = int(synthesis.get("evidence_backed_count") or 0)
@@ -105,6 +76,7 @@ def propose_scientific_decision(db: Session, mission_id: str) -> ScientificDecis
             "evidence_backed_count": evidence_backed,
             "finding_count": int(synthesis.get("finding_count") or 0),
             "recommendation": metadata.get("recommendation"),
+            "memory_context": memory_context,
         },
     )
     db.add(decision)
@@ -124,6 +96,7 @@ def create_mission_from_decision(db: Session, decision_id: str) -> Investigation
         if mission is not None:
             return mission
 
+    memory_context = (decision.basis_json or {}).get("memory_context") or {}
     mission = create_mission(
         db,
         decision.investigation_id,
@@ -135,6 +108,8 @@ def create_mission_from_decision(db: Session, decision_id: str) -> Investigation
             "parent_mission_id": decision.mission_id,
             "synthesis_finding_id": decision.synthesis_finding_id,
             "action_type": decision.action_type,
+            "advisory_memory_ids": list(memory_context.get("memory_ids") or []),
+            "memory_is_canonical_evidence": False,
         },
     )
     decision.next_mission_id = mission.id
@@ -146,9 +121,6 @@ def create_mission_from_decision(db: Session, decision_id: str) -> Investigation
 
 
 def list_scientific_decisions(db: Session, investigation_id: str, limit: int = 50) -> list[ScientificDecision]:
-    return list(db.scalars(
-        select(ScientificDecision)
-        .where(ScientificDecision.investigation_id == investigation_id)
-        .order_by(ScientificDecision.created_at.desc())
-        .limit(limit)
-    ))
+    return list(db.scalars(select(ScientificDecision).where(
+        ScientificDecision.investigation_id == investigation_id
+    ).order_by(ScientificDecision.created_at.desc()).limit(limit)))
