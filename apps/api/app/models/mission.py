@@ -90,3 +90,30 @@ class ScientificResolution(UUIDMixin, TimestampMixin, Base):
     delta_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     evidence_added_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     evidence_removed_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+
+
+class ScientificMemory(UUIDMixin, TimestampMixin, Base):
+    """Derived investigation memory compiled from one immutable scientific resolution.
+
+    Memory is contextual guidance, never canonical evidence. Every record retains
+    direct lineage to the resolution, decision, missions, synthesis findings, and
+    evidence that produced the lesson.
+    """
+
+    __tablename__ = "scientific_memories"
+    __table_args__ = (UniqueConstraint("resolution_id", name="uq_scientific_memory_resolution"),)
+
+    investigation_id: Mapped[str] = mapped_column(ForeignKey("investigations.id"), index=True, nullable=False)
+    resolution_id: Mapped[str] = mapped_column(ForeignKey("scientific_resolutions.id"), index=True, nullable=False)
+    decision_id: Mapped[str] = mapped_column(ForeignKey("scientific_decisions.id"), index=True, nullable=False)
+    parent_mission_id: Mapped[str] = mapped_column(ForeignKey("investigation_missions.id"), index=True, nullable=False)
+    followup_mission_id: Mapped[str] = mapped_column(ForeignKey("investigation_missions.id"), index=True, nullable=False)
+    memory_type: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    compiler_version: Mapped[str] = mapped_column(String(32), default="1.0", nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    lesson_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    source_synthesis_finding_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
