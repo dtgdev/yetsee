@@ -8,8 +8,6 @@ from app.models.mission import InvestigationMission, ScientificDecision, Scienti
 
 
 def _synthesis_for_mission(db: Session, mission: InvestigationMission) -> AgentFinding | None:
-    # Mission synthesis is produced during the mission window. Prefer an explicitly
-    # recorded synthesis id if a future runtime adds it to mission metadata.
     explicit = (mission.metadata_json or {}).get("synthesis_finding_id")
     if explicit:
         finding = db.get(AgentFinding, explicit)
@@ -44,6 +42,63 @@ def _snapshot(finding: AgentFinding) -> dict:
     }
 
 
+def compare_resolution_snapshots(before: dict, after: dict, action_type: str) -> dict:
+    """Deterministically compare two persisted synthesis snapshots.
+
+    This function contains the scientific-resolution classification contract and
+    intentionally has no database or model dependencies.
+    """
+    contradiction_delta = int(after.get("contradiction_count") or 0) - int(before.get("contradiction_count") or 0)
+    gap_delta = int(after.get("evidence_gap_count") or 0) - int(before.get("evidence_gap_count") or 0)
+    coverage_delta = round(float(after.get("evidence_coverage") or 0) - float(before.get("evidence_coverage") or 0), 4)
+    confidence_delta = round(float(after.get("confidence") or 0) - float(before.get("confidence") or 0), 4)
+    before_evidence = set(before.get("evidence_ids") or [])
+    after_evidence = set(after.get("evidence_ids") or [])
+    added = sorted(after_evidence - before_evidence)
+    removed = sorted(before_evidence - after_evidence)
+
+    objective_satisfied = False
+    if action_type == "resolve_agent_disagreement":
+        objective_satisfied = int(before.get("contradiction_count") or 0) > 0 and int(after.get("contradiction_count") or 0) == 0
+    elif action_type == "collect_independent_evidence":
+        objective_satisfied = int(after.get("evidence_gap_count") or 0) < int(before.get("evidence_gap_count") or 0) and bool(added)
+    elif action_type == "expand_source_diversity":
+        objective_satisfied = bool(added) and float(after.get("evidence_coverage") or 0) >= float(before.get("evidence_coverage") or 0)
+    elif action_type == "human_review":
+        objective_satisfied = int(after.get("contradiction_count") or 0) == 0 and int(after.get("evidence_gap_count") or 0) == 0
+    else:
+        objective_satisfied = contradiction_delta <= 0 and gap_delta <= 0 and (coverage_delta > 0 or bool(added))
+
+    improvement = (int(before.get("contradiction_count") or 0) - int(after.get("contradiction_count") or 0)) * 0.35
+    improvement += (int(before.get("evidence_gap_count") or 0) - int(after.get("evidence_gap_count") or 0)) * 0.25
+    improvement += coverage_delta * 0.25 + max(0.0, confidence_delta) * 0.15
+    regression = max(0, contradiction_delta) * 0.35 + max(0, gap_delta) * 0.25 + max(0.0, -coverage_delta) * 0.25
+    score = round(max(-1.0, min(1.0, improvement - regression)), 4)
+
+    if objective_satisfied:
+        status = "resolved"
+    elif contradiction_delta > 0 or gap_delta > 0 or coverage_delta < -0.05:
+        status = "worsened"
+    elif contradiction_delta < 0 or gap_delta < 0 or coverage_delta > 0.05 or added:
+        status = "improved"
+    else:
+        status = "persisting"
+
+    return {
+        "status": status,
+        "objective_satisfied": objective_satisfied,
+        "resolution_score": score,
+        "delta": {
+            "contradiction_delta": contradiction_delta,
+            "evidence_gap_delta": gap_delta,
+            "evidence_coverage_delta": coverage_delta,
+            "confidence_delta": confidence_delta,
+        },
+        "evidence_added_ids": added,
+        "evidence_removed_ids": removed,
+    }
+
+
 def assess_scientific_resolution(db: Session, decision_id: str) -> ScientificResolution:
     decision = db.get(ScientificDecision, decision_id)
     if decision is None:
@@ -67,47 +122,13 @@ def assess_scientific_resolution(db: Session, decision_id: str) -> ScientificRes
 
     before = _snapshot(parent_finding)
     after = _snapshot(followup_finding)
-    contradiction_delta = after["contradiction_count"] - before["contradiction_count"]
-    gap_delta = after["evidence_gap_count"] - before["evidence_gap_count"]
-    coverage_delta = round(after["evidence_coverage"] - before["evidence_coverage"], 4)
-    confidence_delta = round(after["confidence"] - before["confidence"], 4)
-    before_evidence = set(before["evidence_ids"])
-    after_evidence = set(after["evidence_ids"])
-    added = sorted(after_evidence - before_evidence)
-    removed = sorted(before_evidence - after_evidence)
-
-    objective_satisfied = False
-    if decision.action_type == "resolve_agent_disagreement":
-        objective_satisfied = before["contradiction_count"] > 0 and after["contradiction_count"] == 0
-    elif decision.action_type == "collect_independent_evidence":
-        objective_satisfied = after["evidence_gap_count"] < before["evidence_gap_count"] and bool(added)
-    elif decision.action_type == "expand_source_diversity":
-        objective_satisfied = bool(added) and after["evidence_coverage"] >= before["evidence_coverage"]
-    elif decision.action_type == "human_review":
-        objective_satisfied = after["contradiction_count"] == 0 and after["evidence_gap_count"] == 0
-    else:
-        objective_satisfied = contradiction_delta <= 0 and gap_delta <= 0 and (coverage_delta > 0 or bool(added))
-
-    improvement = (before["contradiction_count"] - after["contradiction_count"]) * 0.35
-    improvement += (before["evidence_gap_count"] - after["evidence_gap_count"]) * 0.25
-    improvement += coverage_delta * 0.25 + max(0.0, confidence_delta) * 0.15
-    regression = max(0, contradiction_delta) * 0.35 + max(0, gap_delta) * 0.25 + max(0.0, -coverage_delta) * 0.25
-    score = round(max(-1.0, min(1.0, improvement - regression)), 4)
-
-    if objective_satisfied:
-        status = "resolved"
-    elif contradiction_delta > 0 or gap_delta > 0 or coverage_delta < -0.05:
-        status = "worsened"
-    elif contradiction_delta < 0 or gap_delta < 0 or coverage_delta > 0.05 or added:
-        status = "improved"
-    else:
-        status = "persisting"
+    comparison = compare_resolution_snapshots(before, after, decision.action_type)
 
     summary = (
-        f"Follow-up mission {status}: contradictions {before['contradiction_count']}→{after['contradiction_count']}, "
+        f"Follow-up mission {comparison['status']}: contradictions {before['contradiction_count']}→{after['contradiction_count']}, "
         f"evidence gaps {before['evidence_gap_count']}→{after['evidence_gap_count']}, "
         f"evidence coverage {round(before['evidence_coverage']*100)}%→{round(after['evidence_coverage']*100)}%, "
-        f"with {len(added)} new evidence link(s)."
+        f"with {len(comparison['evidence_added_ids'])} new evidence link(s)."
     )
     resolution = ScientificResolution(
         investigation_id=decision.investigation_id,
@@ -116,20 +137,15 @@ def assess_scientific_resolution(db: Session, decision_id: str) -> ScientificRes
         followup_mission_id=followup.id,
         parent_synthesis_finding_id=parent_finding.id,
         followup_synthesis_finding_id=followup_finding.id,
-        status=status,
-        objective_satisfied=objective_satisfied,
-        resolution_score=score,
+        status=comparison["status"],
+        objective_satisfied=comparison["objective_satisfied"],
+        resolution_score=comparison["resolution_score"],
         summary=summary,
         before_json=before,
         after_json=after,
-        delta_json={
-            "contradiction_delta": contradiction_delta,
-            "evidence_gap_delta": gap_delta,
-            "evidence_coverage_delta": coverage_delta,
-            "confidence_delta": confidence_delta,
-        },
-        evidence_added_ids=added,
-        evidence_removed_ids=removed,
+        delta_json=comparison["delta"],
+        evidence_added_ids=comparison["evidence_added_ids"],
+        evidence_removed_ids=comparison["evidence_removed_ids"],
     )
     db.add(resolution)
     db.commit()
