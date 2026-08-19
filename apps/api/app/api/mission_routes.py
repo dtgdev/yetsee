@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import DB
 from app.kernel import KernelCommand, execute_command
+from app.mission_runtime.decisions import create_mission_from_decision, list_scientific_decisions, propose_scientific_decision
 from app.mission_runtime.engine import get_mission, list_missions
 from app.models.investigation import Investigation
 
@@ -27,29 +28,15 @@ class MissionCreateRequest(BaseModel):
 
 
 @router.post("/investigations/{investigation_id}/missions")
-def create_investigation_mission(
-    investigation_id: str,
-    request: MissionCreateRequest,
-    db: DB,
-):
+def create_investigation_mission(investigation_id: str, request: MissionCreateRequest, db: DB):
     if db.get(Investigation, investigation_id) is None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     try:
-        mission = execute_command(
-            db,
-            KernelCommand(
-                command_type="CreateInvestigationMission",
-                aggregate_type="investigation",
-                aggregate_id=investigation_id,
-                payload={
-                    "objective": request.objective,
-                    "metadata": request.metadata,
-                    "plan": [item.model_dump() for item in request.plan] if request.plan else None,
-                },
-                actor_type="human",
-                actor_id="api",
-            ),
-        )
+        mission = execute_command(db, KernelCommand(
+            command_type="CreateInvestigationMission", aggregate_type="investigation", aggregate_id=investigation_id,
+            payload={"objective": request.objective, "metadata": request.metadata, "plan": [item.model_dump() for item in request.plan] if request.plan else None},
+            actor_type="human", actor_id="api",
+        ))
         db.refresh(mission)
         return mission
     except ValueError as exc:
@@ -57,11 +44,7 @@ def create_investigation_mission(
 
 
 @router.get("/investigations/{investigation_id}/missions")
-def investigation_missions(
-    investigation_id: str,
-    db: DB,
-    limit: int = Query(default=50, ge=1, le=500),
-):
+def investigation_missions(investigation_id: str, db: DB, limit: int = Query(default=50, ge=1, le=500)):
     if db.get(Investigation, investigation_id) is None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     return list_missions(db, investigation_id, limit=limit)
@@ -78,19 +61,34 @@ def mission_detail(mission_id: str, db: DB):
 @router.post("/missions/{mission_id}/run")
 def run_investigation_mission(mission_id: str, db: DB):
     try:
-        execute_command(
-            db,
-            KernelCommand(
-                command_type="RunInvestigationMission",
-                aggregate_type="mission",
-                aggregate_id=mission_id,
-                payload={"mission_id": mission_id},
-                actor_type="human",
-                actor_id="api",
-            ),
-        )
+        execute_command(db, KernelCommand(command_type="RunInvestigationMission", aggregate_type="mission", aggregate_id=mission_id, payload={"mission_id": mission_id}, actor_type="human", actor_id="api"))
         return get_mission(db, mission_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Mission not found") from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/investigations/{investigation_id}/decisions")
+def investigation_decisions(investigation_id: str, db: DB, limit: int = Query(default=50, ge=1, le=500)):
+    if db.get(Investigation, investigation_id) is None:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    return list_scientific_decisions(db, investigation_id, limit=limit)
+
+
+@router.post("/missions/{mission_id}/decision")
+def propose_mission_decision(mission_id: str, db: DB):
+    try:
+        return propose_scientific_decision(db, mission_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/decisions/{decision_id}/mission")
+def decision_create_mission(decision_id: str, db: DB):
+    try:
+        return create_mission_from_decision(db, decision_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
