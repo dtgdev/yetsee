@@ -8,7 +8,7 @@ from app.models.investigation import Investigation
 from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink, HypothesisConfidenceHistory
 from app.models.kernel import InvestigationRevision, KernelCommandLog, KernelEvent, PluginRecord, WorkflowRun
 from app.models.graph import GraphRun
-from app.models.mission import InvestigationMission, InvestigationMissionStep, ScientificDecision
+from app.models.mission import InvestigationMission, InvestigationMissionStep, ScientificDecision, ScientificResolution
 from app.models.observation import Observation
 from app.models.opportunity import Opportunity
 from app.models.relationship import Relationship
@@ -25,6 +25,7 @@ __all__ = [
     "InvestigationMission",
     "InvestigationMissionStep",
     "ScientificDecision",
+    "ScientificResolution",
     "Observation",
     "Signal",
     "Entity",
