@@ -1,5 +1,6 @@
 import "./styles.css";
 import "./mission-control.css";
+import "./mission-provenance.css";
 
 export const metadata = {
   title: "YetSee — Scientific Investigation OS",
