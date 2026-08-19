@@ -44,7 +44,7 @@ export default function InvestigationMissionActions({ investigationId }: { inves
 
   async function selectMission(mission:Mission){setMessage(null);try{const detail=await hydrateMission(mission);setSelected(detail);const first=detail.steps?.at(-1)??detail.steps?.[0];setSelectedStepId(first?.id??(first?`${first.agent_id}-${first.sequence??first.position??0}`:null));setSelectedFindingId(null)}catch(error){setMessage(error instanceof Error?error.message:"Could not load mission")}}
   async function createMission(){setBusy(true);setMessage(null);try{const r=await fetch(`/api/investigations/${investigationId}/missions`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({objective,metadata:{created_from:"mission_control"}})});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Mission creation failed");const mission=normalizeDetail(b);setShowComposer(false);setMessage("Mission planned and recorded by the Kernel.");await load(mission.id);await loadScienceContext();router.refresh()}catch(error){setMessage(error instanceof Error?error.message:"Mission creation failed")}finally{setBusy(false)}}
-  async function runMission(missionId:string){setBusy(true);setMessage(null);try{const r=await fetch(`/api/missions/${missionId}/run`,{method:"POST"});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Mission execution failed");const mission=normalizeDetail(b);setSelected(mission);setSelectedFindingId(null);setMessage(mission.status==="completed"?"Mission completed. Every step is linked to its audited task and findings.":`Mission ended with status ${humanize(mission.status)}.`);await load(mission.id);await loadScienceContext();router.refresh()}catch(error){setMessage(error instanceof Error?error.message:"Mission execution failed")}finally{setBusy(false)}}
+  async function runMission(missionId:string){setBusy(true);setMessage(null);try{let targetId=missionId;if(selected?.id===missionId&&selected.status==="completed"){const createResponse=await fetch(`/api/investigations/${investigationId}/missions`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({objective:selected.objective,metadata:{created_from:"mission_replay",replay_of:selected.id}})});const createBody=await createResponse.json();if(!createResponse.ok)throw new Error(createBody?.detail??"Mission replay planning failed");targetId=normalizeDetail(createBody).id}const r=await fetch(`/api/missions/${targetId}/run`,{method:"POST"});const b=await r.json();if(!r.ok)throw new Error(b?.detail??"Mission execution failed");const mission=normalizeDetail(b);setSelected(mission);setSelectedFindingId(null);setMessage(mission.status==="completed"?(targetId===missionId?"Mission completed. Every step is linked to its audited task and findings.":"Mission replay completed as a new persisted run with fresh findings and synthesis."):`Mission ended with status ${humanize(mission.status)}.`);await load(mission.id);await loadScienceContext();router.refresh()}catch(error){setMessage(error instanceof Error?error.message:"Mission execution failed")}finally{setBusy(false)}}
 
   const steps=selected?.steps??[];
   const completed=steps.filter(s=>s.status==="completed").length;
@@ -62,8 +62,10 @@ export default function InvestigationMissionActions({ investigationId }: { inves
   const synthesisFinding=useMemo(()=>{
     const finalStep=steps.find(step=>step.agent_id==="investigation_agent");
     const ids=new Set(finalStep?.finding_ids??[]);
-    return findings.find(f=>ids.has(f.id)&&f.category==="investigation_synthesis"&&f.metadata_json?.synthesis_type==="cross_agent")??null;
-  },[findings,steps]);
+    const stepSynthesis=findings.find(f=>ids.has(f.id)&&f.category==="investigation_synthesis"&&Boolean(f.metadata_json?.synthesis));
+    if(stepSynthesis)return stepSynthesis;
+    return findings.find(f=>f.category==="investigation_synthesis"&&Boolean(f.metadata_json?.synthesis)&&(!selected?.id||!f.metadata_json?.mission_id||f.metadata_json.mission_id===selected.id))??null;
+  },[findings,steps,selected?.id]);
   const synthesis=synthesisFinding?.metadata_json?.synthesis;
   const recommendation=synthesisFinding?.metadata_json?.recommendation;
 
