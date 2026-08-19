@@ -9,7 +9,6 @@ COMPILER_VERSION = "1.0"
 
 
 def compile_memory_lesson(resolution: ScientificResolution, decision: ScientificDecision) -> dict:
-    """Compile one deterministic lesson from an immutable scientific resolution."""
     before = resolution.before_json or {}
     after = resolution.after_json or {}
     delta = resolution.delta_json or {}
@@ -74,6 +73,76 @@ def compile_memory_lesson(resolution: ScientificResolution, decision: Scientific
             "evidence_removed_ids": removed,
         },
     }
+
+
+def memory_relevance(memory: ScientificMemory, action_type: str) -> int:
+    """Score advisory relevance without treating memory as evidence."""
+    lesson = memory.lesson_json or {}
+    score = 0
+    if lesson.get("action_type") == action_type:
+        score += 5
+    if memory.memory_type in {"uncertainty_persisted", "followup_worsened_uncertainty"}:
+        score += 3
+    if memory.memory_type == "disagreement_resolved" and action_type == "resolve_agent_disagreement":
+        score += 4
+    if memory.memory_type == "evidence_gap_closed" and action_type == "collect_independent_evidence":
+        score += 4
+    if memory.memory_type == "source_diversity_improved" and action_type == "expand_source_diversity":
+        score += 4
+    if lesson.get("objective_satisfied"):
+        score += 1
+    return score
+
+
+def advisory_memory_context(db: Session, investigation_id: str, action_type: str, limit: int = 3) -> dict:
+    memories = list(db.scalars(
+        select(ScientificMemory)
+        .where(ScientificMemory.investigation_id == investigation_id)
+        .order_by(ScientificMemory.created_at.desc())
+        .limit(50)
+    ))
+    ranked = sorted(
+        ((memory_relevance(memory, action_type), memory) for memory in memories),
+        key=lambda item: (item[0], item[1].created_at),
+        reverse=True,
+    )
+    selected = [memory for score, memory in ranked if score > 0][:limit]
+    return {
+        "canonical_evidence": False,
+        "derived_context": True,
+        "action_type": action_type,
+        "memory_ids": [memory.id for memory in selected],
+        "lessons": [
+            {
+                "memory_id": memory.id,
+                "memory_type": memory.memory_type,
+                "outcome": memory.outcome,
+                "confidence": memory.confidence,
+                "title": memory.title,
+                "summary": memory.summary,
+                "objective_satisfied": bool((memory.lesson_json or {}).get("objective_satisfied")),
+                "prior_action_type": (memory.lesson_json or {}).get("action_type"),
+            }
+            for memory in selected
+        ],
+    }
+
+
+def apply_memory_to_objective(objective: str, context: dict) -> str:
+    """Make memory influence explicit in the mission objective, never implicit."""
+    lessons = context.get("lessons") or []
+    if not lessons:
+        return objective
+    persistent = [item for item in lessons if item.get("memory_type") in {"uncertainty_persisted", "followup_worsened_uncertainty"}]
+    successful = [item for item in lessons if item.get("objective_satisfied")]
+    notes: list[str] = []
+    if persistent:
+        notes.append("do not simply repeat the prior unsuccessful follow-up strategy")
+    if successful:
+        notes.append("reuse the previously successful evidence strategy where scientifically applicable")
+    if not notes:
+        notes.append("compare the new outcome against the prior investigation lesson")
+    return f"{objective} Prior scientific memory is advisory only: {'; '.join(notes)}."
 
 
 def compile_scientific_memory(db: Session, resolution_id: str) -> ScientificMemory:
