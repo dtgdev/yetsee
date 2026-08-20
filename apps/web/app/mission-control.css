@@ -1,0 +1,658 @@
+/* Galileo G3.2 — Mission Control
+   Isolated from the global YetSee Studio stylesheet.
+*/
+
+.missionControlConsole {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #dfe7f1;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(28, 55, 90, 0.045);
+  color: #172033;
+}
+
+/* ───────────────── Header ───────────────── */
+
+.missionConsoleHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 20px 17px;
+  border-bottom: 1px solid #e8edf4;
+  background:
+    radial-gradient(circle at 95% 0%, rgba(37, 99, 235, 0.06), transparent 28%),
+    linear-gradient(180deg, #fcfdff 0%, #ffffff 100%);
+}
+
+.missionIdentity {
+  min-width: 0;
+  max-width: 760px;
+}
+
+.missionIdentity .labLabel {
+  display: block;
+  margin-bottom: 5px;
+  color: #6d7b8f;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.missionTitleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.missionTitleRow h3 {
+  max-width: 700px;
+  margin: 0;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+
+.missionIdentity > p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: #748196;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+/* ───────────────── Status ───────────────── */
+
+.missionStatus {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  min-height: 19px;
+  padding: 3px 7px;
+  border: 1px solid #dde4ed;
+  border-radius: 999px;
+  background: #f4f6f9;
+  color: #68778b;
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.missionStatus::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.missionStatus.completed {
+  border-color: #ccebd7;
+  background: #edf9f1;
+  color: #16813b;
+}
+
+.missionStatus.running {
+  border-color: #c8dafa;
+  background: #eef5ff;
+  color: #2563eb;
+}
+
+.missionStatus.failed {
+  border-color: #f1cccc;
+  background: #fff1f1;
+  color: #c93434;
+}
+
+/* ───────────────── Actions ───────────────── */
+
+.missionConsoleActions {
+  display: flex;
+  flex: none;
+  gap: 7px;
+}
+
+.missionConsoleActions button,
+.missionComposer button {
+  min-height: 29px;
+  border: 1px solid #dbe3ed;
+  border-radius: 6px;
+  background: #fff;
+  padding: 0 11px;
+  color: #344054;
+  font: inherit;
+  font-size: 7px;
+  font-weight: 750;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.missionConsoleActions button:hover,
+.missionComposer button:hover {
+  border-color: #bbc8d8;
+  background: #f9fbfd;
+}
+
+.missionConsoleActions button:active,
+.missionComposer button:active {
+  transform: translateY(1px);
+}
+
+.missionConsoleActions .missionPrimaryAction,
+.missionComposer .missionPrimaryAction {
+  border-color: #172033;
+  background: #172033;
+  color: #fff;
+}
+
+.missionConsoleActions .missionPrimaryAction:hover,
+.missionComposer .missionPrimaryAction:hover {
+  border-color: #263750;
+  background: #263750;
+}
+
+.missionConsoleActions button:disabled,
+.missionComposer button:disabled {
+  opacity: 0.48;
+  cursor: wait;
+}
+
+/* ───────────────── Composer ───────────────── */
+
+.missionComposer {
+  padding: 14px 20px;
+  border-bottom: 1px solid #e8edf4;
+  background: #fafcff;
+}
+
+.missionComposer label {
+  display: grid;
+  gap: 6px;
+}
+
+.missionComposer label > span {
+  color: #59697d;
+  font-size: 7px;
+  font-weight: 750;
+}
+
+.missionComposer textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #dce4ee;
+  border-radius: 7px;
+  outline: none;
+  background: #fff;
+  padding: 10px 11px;
+  color: #172033;
+  font: inherit;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.missionComposer textarea:focus {
+  border-color: #8eb4f5;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.07);
+}
+
+.missionComposer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.missionComposer small {
+  max-width: 620px;
+  color: #7c8999;
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+/* ───────────────── Progress ───────────────── */
+
+.missionProgressBand {
+  display: grid;
+  grid-template-columns: 115px minmax(180px, 1fr) 125px;
+  align-items: center;
+  gap: 15px;
+  padding: 13px 20px;
+  border-bottom: 1px solid #edf1f6;
+  background: #fff;
+}
+
+.missionProgressBand > div:first-child {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  justify-content: start;
+  column-gap: 6px;
+}
+
+.missionProgressBand span {
+  color: #738196;
+  font-size: 7px;
+}
+
+.missionProgressBand strong {
+  color: #172033;
+  font-size: 15px;
+  letter-spacing: -0.03em;
+}
+
+.missionProgressBand small {
+  grid-column: 1 / -1;
+  color: #97a2b2;
+  font-size: 6px;
+}
+
+.missionProgressTrack {
+  position: relative;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf2f7;
+}
+
+.missionProgressTrack i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb, #4d8af2);
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.2);
+  transition: width 250ms ease;
+}
+
+.missionProgressMeta {
+  text-align: right;
+}
+
+.missionProgressMeta > span {
+  display: block;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.missionProgressMeta small {
+  display: block;
+  margin-top: 2px;
+  color: #8b97a7;
+  font-size: 6px;
+}
+
+/* ───────────────── Execution Rail ───────────────── */
+
+.missionStepRail {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  padding: 18px 20px 20px;
+  border-bottom: 1px solid #e8edf4;
+  background: #fcfdff;
+}
+
+.missionRailStep {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 0 7px 0 0;
+  text-align: left;
+  cursor: default;
+}
+
+.missionRailStep:not(:last-child)::after {
+  position: absolute;
+  z-index: 0;
+  top: 12px;
+  right: 0;
+  left: 24px;
+  height: 1px;
+  background: #dce5ef;
+  content: "";
+}
+
+.missionRailStep i {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border: 1px solid #dce4ee;
+  border-radius: 50%;
+  background: #f3f5f8;
+  color: #7c8999;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.missionRailStep > span {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  background: #fcfdff;
+  padding-right: 5px;
+}
+
+.missionRailStep strong {
+  display: block;
+  overflow: hidden;
+  color: #344054;
+  font-size: 7px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.missionRailStep small {
+  display: block;
+  margin-top: 2px;
+  color: #8c98a8;
+  font-size: 6px;
+}
+
+.missionRailStep.completed i {
+  border-color: #bde2ca;
+  background: #eaf8ef;
+  color: #15803d;
+}
+
+.missionRailStep.completed:not(:last-child)::after {
+  background: #bde2ca;
+}
+
+.missionRailStep.completed strong {
+  color: #146c36;
+}
+
+.missionRailStep.running i {
+  border-color: #b7cef7;
+  background: #eaf2ff;
+  color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.07);
+}
+
+.missionRailStep.failed i {
+  border-color: #efc4c4;
+  background: #fff0f0;
+  color: #c93434;
+}
+
+/* ───────────────── Lower workspace ───────────────── */
+
+.missionConsoleLower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  min-height: 142px;
+}
+
+.missionCurrentStep,
+.missionHistoryPanel {
+  min-width: 0;
+  padding: 16px 20px 18px;
+}
+
+.missionCurrentStep {
+  border-right: 1px solid #e8edf4;
+}
+
+.missionCurrentStep > .labLabel,
+.missionHistoryHead > .labLabel {
+  color: #7d8999;
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ───────────────── Current/final step ───────────────── */
+
+.missionCurrentHead {
+  display: grid;
+  grid-template-columns: 31px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.missionCurrentHead > b {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 8px;
+  background: #edf4ff;
+  color: #2563eb;
+  font-size: 10px;
+}
+
+.missionCurrentHead h4 {
+  margin: 0;
+  color: #172033;
+  font-size: 10px;
+}
+
+.missionCurrentHead p {
+  margin: 2px 0 0;
+  color: #7c8999;
+  font-size: 7px;
+}
+
+.missionStepEvidence {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.missionStepEvidence > div {
+  min-width: 0;
+  border: 1px solid #e7ecf2;
+  border-radius: 7px;
+  background: #fafcff;
+  padding: 8px 9px;
+}
+
+.missionStepEvidence span {
+  display: block;
+  color: #8c98a8;
+  font-size: 6px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.missionStepEvidence strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: #344054;
+  font-size: 8px;
+  text-overflow: ellipsis;
+}
+
+.missionStepError {
+  margin: 9px 0 0;
+  border: 1px solid #f1d1d1;
+  border-radius: 6px;
+  background: #fff5f5;
+  padding: 7px 8px;
+  color: #bd3434;
+  font-size: 7px;
+}
+
+/* ───────────────── History ───────────────── */
+
+.missionHistoryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.missionHistoryHead small {
+  color: #929cab;
+  font-size: 6px;
+}
+
+.missionHistoryList {
+  display: grid;
+  margin-top: 7px;
+}
+
+.missionHistoryList button {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 0;
+  border-top: 1px solid #eef2f7;
+  background: transparent;
+  padding: 9px 5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.missionHistoryList button:hover {
+  background: #f9fbfd;
+}
+
+.missionHistoryList button.active {
+  border-radius: 5px;
+  background: #f4f8ff;
+}
+
+.missionHistoryList i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #abb5c2;
+}
+
+.missionHistoryList i.completed {
+  background: #22a559;
+  box-shadow: 0 0 0 3px rgba(34, 165, 89, 0.08);
+}
+
+.missionHistoryList i.running {
+  background: #3478e5;
+}
+
+.missionHistoryList i.failed {
+  background: #dc4c4c;
+}
+
+.missionHistoryList span {
+  min-width: 0;
+}
+
+.missionHistoryList strong {
+  display: block;
+  overflow: hidden;
+  color: #344054;
+  font-size: 7px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.missionHistoryList small {
+  display: block;
+  margin-top: 2px;
+  color: #8a96a7;
+  font-size: 6px;
+}
+
+.missionHistoryList em {
+  color: #929cab;
+  font-size: 6px;
+  font-style: normal;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ───────────────── Messages / empty state ───────────────── */
+
+.missionPlanLoading,
+.missionZeroState {
+  padding: 18px 20px;
+}
+
+.missionPlanLoading strong,
+.missionZeroState strong {
+  color: #344054;
+  font-size: 9px;
+}
+
+.missionPlanLoading span,
+.missionZeroState p,
+.missionEmpty {
+  color: #7c8999;
+  font-size: 7px;
+}
+
+.missionActionMessage {
+  margin: 0;
+  border-top: 1px solid #e8edf4;
+  background: #f5f9ff;
+  padding: 9px 20px;
+  color: #47627f;
+  font-size: 7px;
+}
+
+/* ───────────────── Responsive ───────────────── */
+
+@media (max-width: 1050px) {
+  .missionStepRail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 8px;
+  }
+
+  .missionRailStep::after {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .missionConsoleHeader,
+  .missionComposer > div {
+    flex-direction: column;
+  }
+
+  .missionConsoleActions {
+    width: 100%;
+  }
+
+  .missionProgressBand {
+    grid-template-columns: 1fr;
+  }
+
+  .missionProgressMeta {
+    text-align: left;
+  }
+
+  .missionStepRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .missionConsoleLower {
+    grid-template-columns: 1fr;
+  }
+
+  .missionCurrentStep {
+    border-right: 0;
+    border-bottom: 1px solid #e8edf4;
+  }
+}

@@ -7,6 +7,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.knowledge_graph.analytics import analyze_investigation_graph
+
 from app.models.entity import Entity
 from app.models.evidence import EvidenceLink
 from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink
@@ -322,7 +324,7 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
     density = (len(edges) / possible_edges) if possible_edges else 0.0
     sources = sorted({item.source for item in observations})
 
-    return {
+    projection = {
         "investigation": {
             "id": investigation.id,
             "title": investigation.title,
@@ -352,3 +354,6 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "derived": True,
     }
+
+    projection["analytics"] = analyze_investigation_graph(projection)
+    return projection

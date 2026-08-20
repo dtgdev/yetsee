@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { apiGet } from "../../../lib/api";
 import InvestigationAgentActions from "../../../components/InvestigationAgentActions";
+import InvestigationMissionActions from "../../../components/InvestigationMissionActions";
 import { RunGraphReasoner } from "../../../components/ReasoningActions";
-import ReasoningGraph from "../../../components/ReasoningGraph";
 import GalileoGraph from "../../../components/GalileoGraph";
 import { StudioFrame } from "../../../components/StudioChrome";
 import { Metric, ResearchMetrics, ResearchPage, ResearchPanel, StatusPill } from "../../../components/ResearchWorkspace";
@@ -30,20 +30,32 @@ type Relationship = {id:string;source_entity_id:string;target_entity_id:string;k
 type ReasoningResult = {id:string;run_id:string;investigation_id:string;reasoner_id:string;conclusion:string;confidence:number;support_level:string;supporting_factors:any[];contradicting_factors:any[];assumptions:string[];limitations:string[];recommended_evidence:string[];metrics:Record<string,any>;evidence_ids:string[];explanation:string;created_at:string};
 type ReasoningRun = {id:string;reasoner_id:string;status:string;started_at:string|null;finished_at:string|null;created_at:string};
 type Manifest = {id:string;name:string;version:string;scientific_question:string;deterministic:boolean};
+type AgentManifest = {id:string;version:string;role:string;description:string;capabilities:string[];permissions:string[]};
 type InvestigationGraph = {
   investigation:{id:string;title:string;status:string};
   nodes:{id:string;domain_id:string;kind:string;label:string;description?:string|null;confidence:number;evidence_count:number;source_count:number;degree:number;degree_centrality:number;metadata:Record<string,any>}[];
   edges:{id:string;source:string;target:string;kind:string;confidence:number;evidence_ids:string[];metadata:Record<string,any>}[];
   metrics:{nodes:number;edges:number;entities:number;observations:number;hypotheses:number;independent_sources:number;sources:string[];connected_components:number;density:number;relationship_types:Record<string,number>};
+  analytics?:{
+    degree_centrality?:Record<string,number>;
+    betweenness_centrality?:Record<string,number>;
+    closeness_centrality?:Record<string,number>;
+    pagerank?:Record<string,number>;
+    communities?:{id:number;size:number;node_ids:string[];kinds:Record<string,number>}[];
+    bridge_nodes?:{node_id:string;label:string;kind:string;betweenness:number;communities_connected:number;articulation_point:boolean}[];
+    top_semantic_nodes?:{node_id:string;label:string;kind:string;score:number;evidence_count:number;source_count:number}[];
+    density?:number;
+  };
   generated_at:string;derived:boolean;
 };
 
-type Lens = "overview"|"evidence"|"structure"|"reasoning"|"history"|"compare";
+type Lens = "overview"|"evidence"|"structure"|"reasoning"|"agents"|"history"|"compare";
 const lenses:{id:Lens;label:string;question:string}[] = [
   {id:"overview",label:"Overview",question:"What is happening?"},
   {id:"evidence",label:"Evidence",question:"What supports or contradicts this?"},
   {id:"structure",label:"Structure",question:"How is everything connected?"},
   {id:"reasoning",label:"Reasoning",question:"What does the evidence imply?"},
+  {id:"agents",label:"Agents",question:"Who is investigating what?"},
   {id:"history",label:"History",question:"How has understanding evolved?"},
   {id:"compare",label:"Compare",question:"Where do models agree or disagree?"},
 ];
@@ -52,6 +64,7 @@ async function safe<T>(path:string, fallback:T){try{return await apiGet<T>(path)
 const pct=(n:number)=>`${Math.round(n*100)}%`;
 const val=(v:number|null)=>v===null?"—":Number.isInteger(v)?v.toFixed(0):v.toFixed(2);
 const fmt=(d:string|undefined|null)=>d?new Date(d).toLocaleString():"—";
+const humanize=(value:string)=>value.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
 
 function WorkspaceNav({id,active}:{id:string;active:Lens}){
   return <nav className="investigationLensNav" aria-label="Investigation lenses">
@@ -69,7 +82,7 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
   const {id}=await params;
   const query=await searchParams;
   const active=(lenses.some(l=>l.id===query.lens)?query.lens:"overview") as Lens;
-  const [w,allCommands,reasoningResults,reasoningRuns,reasoners,entities,relationships,investigationGraph]=await Promise.all([
+  const [w,allCommands,reasoningResults,reasoningRuns,reasoners,entities,relationships,investigationGraph,agentManifests]=await Promise.all([
     apiGet<Workspace>(`/api/v1/investigations/${id}/workspace`),
     safe<Command[]>("/api/v1/kernel/commands?limit=150",[]),
     safe<ReasoningResult[]>(`/api/v1/investigations/${id}/reasoning/results`,[]),
@@ -78,6 +91,7 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
     safe<Entity[]>("/api/v1/graph/entities?limit=120",[]),
     safe<Relationship[]>("/api/v1/graph/relationships?limit=180",[]),
     safe<InvestigationGraph>(`/api/v1/investigations/${id}/graph`,{investigation:{id,title:"",status:""},nodes:[],edges:[],metrics:{nodes:0,edges:0,entities:0,observations:0,hypotheses:0,independent_sources:0,sources:[],connected_components:0,density:0,relationship_types:{}},generated_at:"",derived:true}),
+    safe<AgentManifest[]>("/api/v1/agents",[]),
   ]);
 
   const inv=w.investigation;
@@ -95,6 +109,17 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
   const relevantEntities=entities.filter(e=>relevantEntityIds.has(e.id));
   const latestFindings=w.agent_findings.slice(0,6);
   const currentConfidence=primary?.confidence??inv.confidence;
+  const graphAnalytics=investigationGraph.analytics??{};
+  const graphCommunities=graphAnalytics.communities??[];
+  const graphBridges=graphAnalytics.bridge_nodes??[];
+  const graphSemantic=graphAnalytics.top_semantic_nodes??[];
+  const latestTaskByAgent=new Map<string,Workspace["agent_tasks"][number]>();
+  for(const task of w.agent_tasks){if(!latestTaskByAgent.has(task.agent_id)) latestTaskByAgent.set(task.agent_id,task)}
+  const latestFindingByAgent=new Map<string,Workspace["agent_findings"][number]>();
+  for(const finding of w.agent_findings){if(!latestFindingByAgent.has(finding.agent_id)) latestFindingByAgent.set(finding.agent_id,finding)}
+  const completedAgentTasks=w.agent_tasks.filter(t=>t.status==="completed").length;
+  const warningFindings=w.agent_findings.filter(f=>f.severity==="warning"||f.severity==="critical");
+  const nextFinding=warningFindings[0]??w.agent_findings[0];
 
   const commonHeader=<>
     <div className="investigationContextStrip">
@@ -114,20 +139,89 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
     </div>;
   } else if(active==="structure"){
     body=<div className="lensWorkspace">
-      <ResearchPanel title="Investigation Graph" subtitle="A canonical, evidence-derived projection of this investigation. Select any node to inspect its scientific context." action={<StatusPill tone="green">derived · deterministic</StatusPill>}>
+      <div className="structureScientificHeader">
+        <div>
+          <span>CANONICAL INVESTIGATION STRUCTURE</span>
+          <h2>{inv.title} structural map</h2>
+          <p>Explore the evidence-derived topology before interpreting what it means. Structure is descriptive; reasoning remains a separate scientific lens.</p>
+        </div>
+        <div className="structureTrust">
+          <StatusPill tone="green">derived</StatusPill>
+          <StatusPill tone="green">deterministic</StatusPill>
+          <StatusPill tone="blue">evidence linked</StatusPill>
+          <span className="structureGenerated">generated {fmt(investigationGraph.generated_at)}</span>
+        </div>
+      </div>
+      <ResearchPanel title="Investigation Graph" subtitle="Scientific view collapses raw observations; Full evidence reveals every evidence node. Select any node to inspect centrality, communities, provenance and linked evidence.">
         <GalileoGraph graph={investigationGraph}/>
       </ResearchPanel>
       <div className="researchTwoCol">
         <ResearchPanel title="Graph health" subtitle="Structural measurements are scoped to this investigation, not the global knowledge graph.">
-          <div className="graphHealthGrid"><div><span>Entities</span><strong>{investigationGraph.metrics.entities}</strong></div><div><span>Observations</span><strong>{investigationGraph.metrics.observations}</strong></div><div><span>Hypotheses</span><strong>{investigationGraph.metrics.hypotheses}</strong></div><div><span>Sources</span><strong>{investigationGraph.metrics.independent_sources}</strong></div><div><span>Components</span><strong>{investigationGraph.metrics.connected_components}</strong></div><div><span>Density</span><strong>{investigationGraph.metrics.density.toFixed(3)}</strong></div></div>
+          <div className="graphHealthGrid"><div><span>Nodes</span><strong>{investigationGraph.metrics.nodes}</strong></div><div><span>Edges</span><strong>{investigationGraph.metrics.edges}</strong></div><div><span>Communities</span><strong>{graphCommunities.length}</strong></div><div><span>Bridge concepts</span><strong>{graphBridges.length}</strong></div><div><span>Sources</span><strong>{investigationGraph.metrics.independent_sources}</strong></div><div><span>Density</span><strong>{(graphAnalytics.density??investigationGraph.metrics.density).toFixed(3)}</strong></div></div>
         </ResearchPanel>
-        <ResearchPanel title="Structural interpretation" subtitle="Graph Reasoner remains a separate scientific lens over the same canonical projection.">
-          {latestReasoning?<><div className="overviewReasoning"><strong>{pct(latestReasoning.confidence)}</strong><div><StatusPill tone={latestReasoning.confidence>=.75?"green":"amber"}>{latestReasoning.support_level}</StatusPill><p>{latestReasoning.conclusion}</p></div></div><Link className="tinyLink" href={`/investigations/${id}?lens=reasoning`}>Open reasoning lens →</Link></>:<><p className="emptyText">No reasoning result yet.</p><RunGraphReasoner investigationId={id}/></>}
+        <ResearchPanel title="Structural interpretation" subtitle="Graph Reasoner interprets this same projection without rewriting the graph or hypothesis confidence.">
+          {latestReasoning?<><div className="overviewReasoning"><strong>{pct(latestReasoning.confidence)}</strong><div><StatusPill tone={latestReasoning.confidence>=.75?"green":"amber"}>{latestReasoning.support_level}</StatusPill><p>{latestReasoning.conclusion}</p></div></div><div className="structureSignalSummary"><span><b>{graphSemantic[0]?.label??"No semantic concept yet"}</b> top semantic node</span><span><b>{graphBridges[0]?.label??"No bridge yet"}</b> bridge concept</span></div><Link className="tinyLink" href={`/investigations/${id}?lens=reasoning`}>Open reasoning lens →</Link></>:<><p className="emptyText">No reasoning result yet.</p><RunGraphReasoner investigationId={id}/></>}
+        </ResearchPanel>
+      </div>
+      <ResearchPanel title="Scientific cautions" subtitle="Graph metrics are structural evidence, not causal proof.">
+        <div className="structureCautions"><div><i>01</i><div><strong>Centrality is not causality</strong><small>A highly connected concept may be structurally important without causing the observed behavior.</small></div></div><div><i>02</i><div><strong>Communities are neighborhoods</strong><small>Detected communities summarize topology; they are not automatically verified scientific categories.</small></div></div><div><i>03</i><div><strong>Source diversity still matters</strong><small>{investigationGraph.metrics.independent_sources} independent source(s) currently support this projection.</small></div></div></div>
+      </ResearchPanel>
+    </div>;
+  } else if(active==="reasoning"){
+    body=<div className="lensWorkspace"><div className="reasoningWorkbench embeddedReasoning"><aside className="reasoningContextPane"><section><span className="labLabel">Primary hypothesis</span><strong>{primary?.title??"No hypothesis yet"}</strong>{primary&&<div className="beliefTrack"><span>Prior {pct(primary.prior_confidence)}</span><b><i style={{width:pct(primary.confidence)}}/></b><span>Now {pct(primary.confidence)}</span></div>}</section><section><span className="labLabel">Available lenses</span><div className="reasonerRail">{[["Graph","What does the structure imply?","ready"],["Bayesian","How should belief change?","future"],["Causal","What causes what?","future"],["Forecast","What is likely next?","future"]].map(([n,q,s])=><div className={s==="ready"?"active":""} key={n}><i/><span><strong>{n}</strong><small>{q}</small></span><em>{s}</em></div>)}</div></section><section className="trustChecklist"><span className="labLabel">Why trust this result?</span>{["Deterministic","Replayable","Versioned","Evidence linked","Kernel recorded","Assumptions visible"].map(x=><div key={x}><i>✓</i>{x}</div>)}</section></aside><main className="reasoningCanvasPane"><div className="labPanelHead"><div><span className="labLabel">Active scientific lens</span><h2>{graphManifest?.name??"Graph Reasoner"}</h2></div><RunGraphReasoner investigationId={id}/></div><div className="unifiedReasoningGraph">
+  <div className="unifiedReasoningGraphLabel">
+    <span>CANONICAL INVESTIGATION GRAPH</span>
+    <small>Same evidence-derived structure used by the Structure lens · reasoning is an interpretation overlay</small>
+  </div>
+  <GalileoGraph graph={investigationGraph}/>
+</div><div className="reasoningPipeline"><span className="labLabel">Reasoning pipeline</span>{[["Evidence loaded",`${w.observations.length} observations`],["Graph constructed",`${investigationGraph.metrics.nodes} nodes · ${investigationGraph.metrics.edges} edges`],["Structure inspected",`${Object.keys(investigationGraph.metrics.relationship_types).length} relation types · ${graphCommunities.length} communities`],["Reasoning computed",latestReasoning?pct(latestReasoning.confidence):"Not run"],["Result recorded",latestReasoning?"Replayable":"Pending"]].map(([n,v],i)=><div key={n} className={latestReasoning||i<3?"done":""}><i>{i+1}</i><span><strong>{n}</strong><small>{v}</small></span></div>)}</div></main><aside className="reasoningReportPane">{latestReasoning?<><div className="reasoningHeroScore"><strong>{pct(latestReasoning.confidence)}</strong><StatusPill tone={latestReasoning.confidence>=.75?"green":"amber"}>{latestReasoning.support_level} support</StatusPill></div><details className="reasoningDisclosure" open><summary>Conclusion</summary><p>{latestReasoning.conclusion}</p></details><details className="reasoningDisclosure"><summary>Supporting factors <em>{latestReasoning.supporting_factors.length}</em></summary><div className="factorCards">{latestReasoning.supporting_factors.map((f:any,i:number)=><article key={i}><b>+</b><span>{f.entity??f.factor??"Structural signal"}<small>{f.relationship??(f.value!==undefined?String(f.value):"")}</small></span></article>)}</div></details><details className="reasoningDisclosure"><summary>Contradicting factors <em>{latestReasoning.contradicting_factors.length}</em></summary>{latestReasoning.contradicting_factors.length?<div className="factorCards negative">{latestReasoning.contradicting_factors.map((f:any,i:number)=><article key={i}><b>−</b><span>{f.entity??f.factor??String(f)}</span></article>)}</div>:<p className="quietNote">No explicit contradicting structural factors were found. This is not proof that none exist.</p>}</details><details className="reasoningDisclosure"><summary>Assumptions <em>{latestReasoning.assumptions.length}</em></summary>{latestReasoning.assumptions.map(x=><p key={x}>• {x}</p>)}</details><details className="reasoningDisclosure"><summary>Limitations <em>{latestReasoning.limitations.length}</em></summary>{latestReasoning.limitations.map(x=><p key={x}>• {x}</p>)}</details><details className="reasoningDisclosure"><summary>Recommended evidence <em>{latestReasoning.recommended_evidence.length}</em></summary>{latestReasoning.recommended_evidence.map(x=><p key={x}>→ {x}</p>)}</details></>:<p className="emptyText">No reasoning result yet. Run Graph Reasoner to create a permanent scientific interpretation.</p>}</aside></div></div>;
+  } else if(active==="agents"){
+    const agentOrder=["signal_steward","evidence_agent","evidence_critic","semantic_curator","entity_curator","graph_analyst","opportunity_analyst","quality_agent","investigation_agent","discovery_analyst"];
+    const orderedAgents=[...agentManifests].sort((a,b)=>agentOrder.indexOf(a.id)-agentOrder.indexOf(b.id));
+    body=<div className="lensWorkspace agenticWorkspace">
+      <section className="agenticHero">
+        <div><span className="labLabel">Agentic investigation</span><h2>Scientific Investigation Team</h2><p>Agents perform bounded, evidence-linked work. They create findings and recommendations; they do not silently rewrite canonical evidence or hypothesis confidence.</p></div>
+        <InvestigationMissionActions investigationId={id}/>
+      </section>
+      <ResearchMetrics>
+        <Metric label="Registered agents" value={agentManifests.length} note="replaceable scientific workers" tone="blue"/>
+        <Metric label="Investigation tasks" value={w.agent_tasks.length} note={`${completedAgentTasks} completed`} tone="green"/>
+        <Metric label="Agent findings" value={w.agent_findings.length} note={`${warningFindings.length} need attention`} tone="amber"/>
+        <Metric label="Kernel commands" value={commands.length} note="audited investigation actions" tone="violet"/>
+      </ResearchMetrics>
+      <div className="agenticAssessmentGrid">
+        <ResearchPanel title="Current scientific assessment" subtitle="A deterministic summary of evidence, structure and reasoning state.">
+          <div className="assessmentRows">
+            <div><span>Structural signal</span><strong>{latestReasoning?`${humanize(latestReasoning.support_level)} · ${pct(latestReasoning.confidence)}`:"Not reasoned"}</strong></div>
+            <div><span>Independent sources</span><strong>{sources.length} · {sources.length>=3?"stronger coverage":"needs diversity"}</strong></div>
+            <div><span>Graph communities</span><strong>{graphCommunities.length}</strong></div>
+            <div><span>Bridge concept</span><strong>{graphBridges[0]?.label??"None detected"}</strong></div>
+            <div><span>Counter-evidence</span><strong>{contradicting.length?`${contradicting.length} linked`:`Insufficient`}</strong></div>
+          </div>
+        </ResearchPanel>
+        <ResearchPanel title="Next best action" subtitle="Driven by the highest-priority current finding, not a hidden model decision.">
+          {nextFinding?<div className="nextActionCard"><StatusPill tone={nextFinding.severity==="critical"?"red":nextFinding.severity==="warning"?"amber":"blue"}>{nextFinding.severity}</StatusPill><h3>{nextFinding.title}</h3><p>{nextFinding.detail}</p><small>{humanize(nextFinding.agent_id)} · confidence {pct(nextFinding.confidence)}</small></div>:<div className="futureCapability"><strong>No outstanding agent finding</strong><p>Run the investigation team to create a fresh evidence-linked assessment.</p></div>}
+        </ResearchPanel>
+      </div>
+      <ResearchPanel title="Scientific investigation team" subtitle="Each agent has a bounded role, explicit capabilities and an auditable task history.">
+        <div className="scientificTeamGrid">
+          {orderedAgents.map(agent=>{const task=latestTaskByAgent.get(agent.id);const finding=latestFindingByAgent.get(agent.id);const status=task?.status??(finding?"finding":"ready");return <article className="scientificAgentCard" key={agent.id}>
+            <header><span className="agentGlyph">{agent.id==="evidence_critic"?"!":agent.id==="quality_agent"?"✓":agent.id==="graph_analyst"?"◇":"●"}</span><div><h3>{agent.role}</h3><small>{agent.id} · v{agent.version}</small></div><StatusPill tone={status==="completed"?"green":status==="failed"?"red":finding?.severity==="warning"?"amber":"slate"}>{status}</StatusPill></header>
+            <p>{agent.description}</p>
+            {finding?<div className="agentLatestFinding"><span>Latest finding</span><strong>{finding.title}</strong><p>{finding.detail}</p><small>{finding.evidence_ids.length} linked evidence · {pct(finding.confidence)} confidence</small></div>:<div className="agentLatestFinding empty"><span>Latest finding</span><strong>No finding yet</strong><p>Run the investigation team to create an audited assessment.</p></div>}
+            <footer><span>{agent.capabilities.slice(0,2).map(humanize).join(" · ")}</span>{task&&<time>{fmt(task.created_at)}</time>}</footer>
+          </article>})}
+        </div>
+      </ResearchPanel>
+      <div className="researchTwoCol agenticBottomGrid">
+        <ResearchPanel title="Investigation task ledger" subtitle="Recent agent work remains inspectable and append-only.">
+          <div className="agentTaskLedger">{w.agent_tasks.length?[...w.agent_tasks].slice(0,12).map(task=><div key={task.id}><div><strong>{humanize(task.agent_id)}</strong><span>{humanize(task.task_type)}</span></div><div><StatusPill tone={task.status==="completed"?"green":task.status==="failed"?"red":"amber"}>{task.status}</StatusPill><time>{fmt(task.created_at)}</time></div></div>):<p className="emptyText">No investigation agent tasks recorded yet.</p>}</div>
+        </ResearchPanel>
+        <ResearchPanel title="Operating boundary" subtitle="Agent autonomy is intentionally constrained.">
+          <div className="agentBoundaryList"><div><b>1</b><span><strong>Agents investigate</strong><small>Collect, critique, curate, validate and recommend.</small></span></div><div><b>2</b><span><strong>Reasoners interpret</strong><small>Mathematical lenses produce separate, replayable results.</small></span></div><div><b>3</b><span><strong>Humans decide</strong><small>Recommendations do not silently become scientific truth.</small></span></div><div><b>4</b><span><strong>Kernel records</strong><small>Commands, provenance and outcomes remain auditable.</small></span></div></div>
         </ResearchPanel>
       </div>
     </div>;
-  } else if(active==="reasoning"){
-    body=<div className="lensWorkspace"><div className="reasoningWorkbench embeddedReasoning"><aside className="reasoningContextPane"><section><span className="labLabel">Primary hypothesis</span><strong>{primary?.title??"No hypothesis yet"}</strong>{primary&&<div className="beliefTrack"><span>Prior {pct(primary.prior_confidence)}</span><b><i style={{width:pct(primary.confidence)}}/></b><span>Now {pct(primary.confidence)}</span></div>}</section><section><span className="labLabel">Available lenses</span><div className="reasonerRail">{[["Graph","What does the structure imply?","ready"],["Bayesian","How should belief change?","future"],["Causal","What causes what?","future"],["Forecast","What is likely next?","future"]].map(([n,q,s])=><div className={s==="ready"?"active":""} key={n}><i/><span><strong>{n}</strong><small>{q}</small></span><em>{s}</em></div>)}</div></section><section className="trustChecklist"><span className="labLabel">Why trust this result?</span>{["Deterministic","Replayable","Versioned","Evidence linked","Kernel recorded","Assumptions visible"].map(x=><div key={x}><i>✓</i>{x}</div>)}</section></aside><main className="reasoningCanvasPane"><div className="labPanelHead"><div><span className="labLabel">Active scientific lens</span><h2>{graphManifest?.name??"Graph Reasoner"}</h2></div><RunGraphReasoner investigationId={id}/></div><ReasoningGraph entities={relevantEntities.length?relevantEntities:entities.slice(0,8)} relationships={relevantRelationships.length?relevantRelationships:relationships.slice(0,12)}/><div className="reasoningPipeline"><span className="labLabel">Reasoning pipeline</span>{[["Evidence loaded",`${w.observations.length} observations`],["Graph constructed",`${relevantEntities.length} nodes · ${relevantRelationships.length} edges`],["Structure inspected",`${new Set(relevantRelationships.map(r=>r.kind)).size} relation types`],["Reasoning computed",latestReasoning?pct(latestReasoning.confidence):"Not run"],["Result recorded",latestReasoning?"Replayable":"Pending"]].map(([n,v],i)=><div key={n} className={latestReasoning||i<3?"done":""}><i>{i+1}</i><span><strong>{n}</strong><small>{v}</small></span></div>)}</div></main><aside className="reasoningReportPane">{latestReasoning?<><div className="reasoningHeroScore"><strong>{pct(latestReasoning.confidence)}</strong><StatusPill tone={latestReasoning.confidence>=.75?"green":"amber"}>{latestReasoning.support_level} support</StatusPill></div><details className="reasoningDisclosure" open><summary>Conclusion</summary><p>{latestReasoning.conclusion}</p></details><details className="reasoningDisclosure"><summary>Supporting factors <em>{latestReasoning.supporting_factors.length}</em></summary><div className="factorCards">{latestReasoning.supporting_factors.map((f:any,i:number)=><article key={i}><b>+</b><span>{f.entity??f.factor??"Structural signal"}<small>{f.relationship??(f.value!==undefined?String(f.value):"")}</small></span></article>)}</div></details><details className="reasoningDisclosure"><summary>Contradicting factors <em>{latestReasoning.contradicting_factors.length}</em></summary>{latestReasoning.contradicting_factors.length?<div className="factorCards negative">{latestReasoning.contradicting_factors.map((f:any,i:number)=><article key={i}><b>−</b><span>{f.entity??f.factor??String(f)}</span></article>)}</div>:<p className="quietNote">No explicit contradicting structural factors were found. This is not proof that none exist.</p>}</details><details className="reasoningDisclosure"><summary>Assumptions <em>{latestReasoning.assumptions.length}</em></summary>{latestReasoning.assumptions.map(x=><p key={x}>• {x}</p>)}</details><details className="reasoningDisclosure"><summary>Limitations <em>{latestReasoning.limitations.length}</em></summary>{latestReasoning.limitations.map(x=><p key={x}>• {x}</p>)}</details><details className="reasoningDisclosure"><summary>Recommended evidence <em>{latestReasoning.recommended_evidence.length}</em></summary>{latestReasoning.recommended_evidence.map(x=><p key={x}>→ {x}</p>)}</details></>:<p className="emptyText">No reasoning result yet. Run Graph Reasoner to create a permanent scientific interpretation.</p>}</aside></div></div>;
   } else if(active==="history"){
     body=<div className="lensWorkspace"><div className="researchTwoCol"><ResearchPanel title="Investigation timeline" subtitle="Immutable sequence of how understanding changed."><div>{[...w.timeline].reverse().map(e=><div className="timelineRowV2" key={e.id}><span className="timelineSeq">{e.sequence}</span><div><strong>{e.event_type}</strong><small>{fmt(e.occurred_at)}</small></div></div>)}</div></ResearchPanel><ResearchPanel title="Version history" subtitle="Every meaningful change becomes a revision."><div>{[...w.revisions].reverse().map(r=><div className="revisionRowV2" key={r.id}><span>#{r.revision_number}</span><div><strong>{r.message}</strong><small>{r.change_type} · {fmt(r.created_at)}</small></div></div>)}</div></ResearchPanel></div><div className="researchTwoCol"><ResearchPanel title="Confidence evolution" subtitle="Belief changes remain separate from reasoner output."><div className="confidenceJourney"><div><strong>{primary?pct(primary.prior_confidence):"—"}</strong><span>prior</span></div>{w.confidence_history.slice(-8).map(c=><div key={c.id}><i>→</i><strong>{pct(c.new_confidence)}</strong><span>{new Date(c.created_at).toLocaleDateString()}</span></div>)}{latestReasoning&&<div className="reasoningConfidence"><i>≠</i><strong>{pct(latestReasoning.confidence)}</strong><span>reasoner</span></div>}</div></ResearchPanel><ResearchPanel title="Kernel command trail" subtitle="Every action is centrally audited."><div className="ledgerList">{commands.slice(0,16).map(c=><div key={c.id}><div><strong>{c.command_type}</strong><span>corr {c.correlation_id.slice(0,8)}{c.causation_id?` · caused by ${c.causation_id.slice(0,8)}`:""}</span></div><div><StatusPill tone={c.status==="completed"?"green":"amber"}>{c.status}</StatusPill><time>{fmt(c.requested_at)}</time></div></div>)}</div></ResearchPanel></div></div>;
   } else if(active==="compare"){

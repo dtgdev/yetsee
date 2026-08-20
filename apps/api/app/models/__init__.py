@@ -8,6 +8,7 @@ from app.models.investigation import Investigation
 from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink, HypothesisConfidenceHistory
 from app.models.kernel import InvestigationRevision, KernelCommandLog, KernelEvent, PluginRecord, WorkflowRun
 from app.models.graph import GraphRun
+from app.models.mission import InvestigationMission, InvestigationMissionStep, ScientificDecision, ScientificResolution, ScientificMemory
 from app.models.observation import Observation
 from app.models.opportunity import Opportunity
 from app.models.relationship import Relationship
@@ -17,34 +18,10 @@ from app.models.semantic import SemanticConcept, SemanticRun
 from app.models.user import User
 
 __all__ = [
-    "User",
-    "AgentTask",
-    "AgentRun",
-    "AgentFinding",
-    "Observation",
-    "Signal",
-    "Entity",
-    "Relationship",
-    "ReasoningRun",
-    "ReasoningResult",
-    "Investigation",
-    "Hypothesis",
-    "HypothesisEvidenceLink",
-    "HypothesisConfidenceHistory",
-    "InvestigationRevision",
-    "KernelEvent",
-    "KernelCommandLog",
-    "PluginRecord",
-    "WorkflowRun",
-    "GraphRun",
-    "EvidenceLink",
-    "Feature",
-    "FeatureRun",
-    "Opportunity",
-    "ConnectorRun",
-    "ConnectorState",
-    "DetectorRun",
-    "DiscoveryCandidate",
-    "SemanticConcept",
-    "SemanticRun",
+    "User", "AgentTask", "AgentRun", "AgentFinding", "InvestigationMission", "InvestigationMissionStep",
+    "ScientificDecision", "ScientificResolution", "ScientificMemory", "Observation", "Signal", "Entity",
+    "Relationship", "ReasoningRun", "ReasoningResult", "Investigation", "Hypothesis", "HypothesisEvidenceLink",
+    "HypothesisConfidenceHistory", "InvestigationRevision", "KernelEvent", "KernelCommandLog", "PluginRecord",
+    "WorkflowRun", "GraphRun", "EvidenceLink", "Feature", "FeatureRun", "Opportunity", "ConnectorRun",
+    "ConnectorState", "DetectorRun", "DiscoveryCandidate", "SemanticConcept", "SemanticRun",
 ]

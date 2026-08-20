@@ -75,6 +75,8 @@ AGENT_COMMAND_PERMISSIONS: dict[str, str] = {
     "TransitionInvestigation": "write:investigation_state",
     "RunInvestigationAgent": "execute:agents",
     "RefreshInvestigation": "execute:investigation_refresh",
+    "CreateInvestigationMission": "execute:agents",
+    "RunInvestigationMission": "execute:agents",
     "RunReasoner": "execute:reasoners",
 }
 

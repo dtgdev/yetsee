@@ -52,3 +52,62 @@ def test_graph_reasoner_runs_through_kernel_and_is_replayable():
     event_types = {row.event_type for row in db.scalars(select(KernelEvent).where(KernelEvent.aggregate_id == investigation.id))}
     assert "ReasoningStarted" in event_types
     assert "ReasoningCompleted" in event_types
+
+
+def test_graph_reasoner_v12_uses_graph_analytics_deterministically():
+    db = make_session()
+
+    run_connector(db, "demo")
+    run_workflow(db, "intelligence-refresh", hours=720)
+
+    candidate = db.scalar(
+        select(DiscoveryCandidate).where(
+            DiscoveryCandidate.canonical_key == "running clubs"
+        )
+    )
+
+    assert candidate is not None
+
+    investigation = promote_candidate(
+        db,
+        candidate.id,
+        allow_override=True,
+        override_reason="galileo reasoning analytics",
+    )
+
+    first = execute_command(
+        db,
+        KernelCommand(
+            command_type="RunReasoner",
+            aggregate_type="investigation",
+            aggregate_id=investigation.id,
+            payload={"reasoner_id": "graph"},
+        ),
+    )
+
+    second = execute_command(
+        db,
+        KernelCommand(
+            command_type="RunReasoner",
+            aggregate_type="investigation",
+            aggregate_id=investigation.id,
+            payload={"reasoner_id": "graph"},
+        ),
+    )
+
+    assert first.reasoner_id == "graph"
+    assert second.reasoner_id == "graph"
+
+    assert first.confidence == second.confidence
+    assert first.conclusion == second.conclusion
+    assert first.explanation == second.explanation
+    assert first.metrics == second.metrics
+
+    assert "communities" in first.metrics
+    assert "bridge_nodes" in first.metrics
+    assert "top_semantic_nodes" in first.metrics
+    assert "graph_density" in first.metrics
+
+    assert "PageRank" in first.explanation
+    assert "community" in first.explanation.lower()
+    assert "bridge" in first.explanation.lower()
