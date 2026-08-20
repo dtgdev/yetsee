@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.mission_runtime.memory import advisory_memory_context, apply_memory_to_objective
 from app.models.agent import AgentFinding
-from app.models.mission import InvestigationMission, ScientificDecision
+from app.models.mission import InvestigationMission, InvestigationMissionStep, ScientificDecision
 
 
 def _decision_action(synthesis: dict) -> tuple[str, str, str, str]:
@@ -25,6 +25,83 @@ def _decision_action(synthesis: dict) -> tuple[str, str, str, str]:
     return ("re_evaluate_investigation", "medium", "The current synthesis does not contain enough agreement, contradiction, or evidence-gap signal to justify a stronger action.", "Re-evaluate the investigation with additional independent evidence and a fresh cross-agent synthesis.")
 
 
+def _mission_findings(db: Session, mission: InvestigationMission) -> list[AgentFinding]:
+    steps = list(db.scalars(select(InvestigationMissionStep).where(
+        InvestigationMissionStep.mission_id == mission.id
+    ).order_by(InvestigationMissionStep.sequence.asc())))
+    finding_ids: list[str] = []
+    for step in steps:
+        for finding_id in step.finding_ids or []:
+            if finding_id not in finding_ids:
+                finding_ids.append(finding_id)
+    if not finding_ids:
+        return []
+    findings = list(db.scalars(select(AgentFinding).where(AgentFinding.id.in_(finding_ids))))
+    by_id = {finding.id: finding for finding in findings}
+    return [by_id[finding_id] for finding_id in finding_ids if finding_id in by_id]
+
+
+def _legacy_synthesis_payload(db: Session, mission: InvestigationMission, synthesis_finding: AgentFinding) -> dict:
+    """Reconstruct the minimum structured synthesis from immutable persisted mission findings.
+
+    Older Galileo missions persisted the Investigation Agent summary and all specialist
+    findings, but predate the nested metadata_json.synthesis contract. This adapter derives
+    counts and lineage only from those stored records; it does not invent scientific facts.
+    """
+    mission_findings = _mission_findings(db, mission)
+    source_findings = [finding for finding in mission_findings if finding.id != synthesis_finding.id]
+    if not source_findings:
+        return {}
+
+    evidence_ids: list[str] = []
+    for finding in [synthesis_finding, *source_findings]:
+        for evidence_id in finding.evidence_ids or []:
+            if evidence_id not in evidence_ids:
+                evidence_ids.append(evidence_id)
+
+    agent_ids: list[str] = []
+    for finding in source_findings:
+        if finding.agent_id not in agent_ids:
+            agent_ids.append(finding.agent_id)
+
+    agreement_count = sum(1 for finding in source_findings if finding.stance == "supporting")
+    contradiction_count = sum(1 for finding in source_findings if finding.stance == "contradicting")
+    evidence_gap_count = sum(1 for finding in source_findings if not (finding.evidence_ids or []))
+    evidence_backed_count = sum(1 for finding in source_findings if finding.evidence_ids or [])
+
+    return {
+        "agent_ids": agent_ids,
+        "finding_count": len(source_findings),
+        "agreement_count": agreement_count,
+        "contradiction_count": contradiction_count,
+        "evidence_gap_count": evidence_gap_count,
+        "evidence_backed_count": evidence_backed_count,
+        "evidence_ids": evidence_ids,
+        "source_findings": [
+            {
+                "finding_id": finding.id,
+                "agent_id": finding.agent_id,
+                "stance": finding.stance,
+                "confidence": finding.confidence,
+                "evidence_ids": list(finding.evidence_ids or []),
+            }
+            for finding in source_findings
+        ],
+        "legacy_reconstructed": True,
+    }
+
+
+def _synthesis_finding_for_mission(db: Session, mission: InvestigationMission) -> AgentFinding | None:
+    mission_findings = _mission_findings(db, mission)
+    for finding in reversed(mission_findings):
+        if finding.category == "investigation_synthesis":
+            return finding
+    return db.scalar(select(AgentFinding).where(
+        AgentFinding.target_id == mission.investigation_id,
+        AgentFinding.category == "investigation_synthesis",
+    ).order_by(AgentFinding.created_at.desc()))
+
+
 def propose_scientific_decision(db: Session, mission_id: str) -> ScientificDecision:
     mission = db.get(InvestigationMission, mission_id)
     if mission is None:
@@ -32,17 +109,14 @@ def propose_scientific_decision(db: Session, mission_id: str) -> ScientificDecis
     if mission.status != "completed":
         raise ValueError("Scientific decisions require a completed mission")
 
-    finding = db.scalar(select(AgentFinding).where(
-        AgentFinding.target_id == mission.investigation_id,
-        AgentFinding.category == "investigation_synthesis",
-    ).order_by(AgentFinding.created_at.desc()))
+    finding = _synthesis_finding_for_mission(db, mission)
     if finding is None:
         raise ValueError("Completed mission has no investigation synthesis finding")
 
     metadata = finding.metadata_json or {}
-    synthesis = metadata.get("synthesis") or {}
+    synthesis = metadata.get("synthesis") or _legacy_synthesis_payload(db, mission, finding)
     if not synthesis:
-        raise ValueError("Investigation synthesis has no structured cross-agent payload")
+        raise ValueError("Investigation synthesis has no structured payload and mission findings cannot reconstruct one")
     existing = db.scalar(select(ScientificDecision).where(ScientificDecision.synthesis_finding_id == finding.id))
     if existing is not None:
         return existing
@@ -76,6 +150,7 @@ def propose_scientific_decision(db: Session, mission_id: str) -> ScientificDecis
             "evidence_backed_count": evidence_backed,
             "finding_count": int(synthesis.get("finding_count") or 0),
             "recommendation": metadata.get("recommendation"),
+            "legacy_reconstructed": bool(synthesis.get("legacy_reconstructed")),
             "memory_context": memory_context,
         },
     )
