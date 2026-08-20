@@ -1,0 +1,106 @@
+/* Scientific workspace presentation recovery.
+   Presentation-only overrides: no lens, runtime, graph, evidence, reasoning,
+   mission, decision, resolution, memory, history or compare behavior changes. */
+
+/* The investigation workspace was visually compressed by the original Studio v2
+   typography. Restore an immersive scientific-workbench scale while preserving
+   the existing component tree and responsive behavior. */
+.researchWorkspace {
+  max-width: 1720px;
+  padding: 34px 42px 72px;
+}
+
+.researchPageHeader {
+  padding: 14px 4px 28px;
+}
+.researchPageHeader > div:first-child { max-width: 1050px; }
+.researchEyebrow { font-size: 11px; margin-bottom: 9px; }
+.researchPageHeader h1 { font-size: 42px; margin-bottom: 9px; }
+.researchPageHeader > div > p:last-child { font-size: 14px; }
+.researchHeaderActions { gap: 10px; }
+.researchHeaderActions button { font-size: 11px !important; padding: 10px 14px !important; }
+
+.investigationContextStrip {
+  min-height: 44px;
+  padding: 10px 12px;
+  margin-top: 14px;
+}
+.investigationContextStrip,
+.investigationContextStrip span { font-size: 9px; }
+
+.investigationLensNav {
+  margin: 12px 0 18px;
+  gap: 4px;
+}
+.investigationLensNav a,
+.investigationLensNav .futureLens {
+  min-height: 58px;
+  padding: 11px 12px;
+}
+.investigationLensNav strong { font-size: 10px; }
+.investigationLensNav small { font-size: 7px; line-height: 1.35; }
+
+.researchMetrics { gap: 14px; margin: 18px 0; }
+.researchMetric { min-height: 104px; padding: 17px; gap: 13px; }
+.researchMetric .metricGlyph { width: 34px; height: 34px; font-size: 12px; }
+.researchMetric p { font-size: 11px; margin-bottom: 7px; }
+.researchMetric strong { font-size: 29px; }
+.researchMetric small { font-size: 9px; margin-top: 8px; }
+
+.researchPanel { padding: 20px; margin-top: 15px; }
+.researchPanelHead { margin-bottom: 17px; }
+.researchPanelHead h2 { font-size: 17px; }
+.researchPanelHead p { font-size: 11px; margin-top: 5px; }
+.panelCode { font-size: 9px; }
+.researchTwoCol { gap: 15px; }
+.investigationSummaryGrid { gap: 15px; }
+
+.hypothesisHero h3 { font-size: 19px; margin-top: 12px; }
+.hypothesisHero p { font-size: 10px; }
+.confidenceDial { width: 92px; height: 92px; }
+.confidenceDial strong { font-size: 20px; }
+.confidenceDial span { font-size: 7px; }
+
+.researchPill { font-size: 8px; padding: 5px 8px; }
+.timelineMini > div { grid-template-columns: 9px 58px 1fr; font-size: 9px; padding: 7px 0; }
+.sourceDiversityV2 > div { grid-template-columns: 125px 1fr 24px; font-size: 9px; }
+.findingListV2 > div { grid-template-columns: 24px 1fr auto; gap: 10px; padding: 12px 0; }
+.findingDot { width: 23px; height: 23px; font-size: 9px; }
+.findingListV2 strong { font-size: 10px; }
+.findingListV2 p { font-size: 9px; }
+.findingListV2 small,
+.findingListV2 > div > div:last-child span { font-size: 8px; }
+.findingListV2 b { font-size: 11px; }
+
+.lensInsight span,
+.workflowStep span { font-size: 8px; }
+.lensInsight strong,
+.workflowStep strong { font-size: 10px; }
+.lensInsight p,
+.workflowStep p { font-size: 9px; }
+
+.observationTableV2 .tableHeader,
+.observationTableV2 .tableRow { grid-template-columns: 1fr .7fr 1.45fr .45fr; }
+.tableHeader { font-size: 9px; padding: 9px 6px; }
+.tableRow { font-size: 10px; padding: 12px 6px; }
+.tableRow strong { font-size: 10px; }
+.tableRow small { font-size: 8px; }
+.tableRow > b { font-size: 12px; }
+
+/* Keep graph and reasoning canvases large enough to behave like scientific tools,
+   not dashboard thumbnails. */
+.galileoWorkbench { min-height: 720px; }
+.reasoningLabGrid { gap: 22px; }
+
+@media (max-width: 1300px) {
+  .researchWorkspace { padding: 28px 28px 60px; }
+  .researchPageHeader h1 { font-size: 38px; }
+}
+
+@media (max-width: 780px) {
+  .researchWorkspace { padding: 18px 13px 44px; }
+  .researchPageHeader h1 { font-size: 31px; }
+  .researchMetric { min-height: 88px; padding: 13px; }
+  .researchPanel { padding: 15px; }
+  .galileoWorkbench { min-height: 560px; }
+}
