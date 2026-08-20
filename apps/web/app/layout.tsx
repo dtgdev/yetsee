@@ -4,6 +4,7 @@ import "./mission-provenance.css";
 import "./scientific-decision.css";
 import "./scientific-resolution.css";
 import "./scientific-memory.css";
+import "./workspace-recovery.css";
 
 export const metadata = {
   title: "YetSee — Scientific Investigation OS",
