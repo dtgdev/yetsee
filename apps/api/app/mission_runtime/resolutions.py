@@ -3,29 +3,21 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.mission_runtime.decisions import _legacy_synthesis_payload, _synthesis_finding_for_mission
 from app.models.agent import AgentFinding
-from app.models.mission import InvestigationMission, ScientificDecision, ScientificResolution
+from app.models.mission import InvestigationMission, ScientificDecision, ScientificMemory, ScientificResolution
 
 
-def _synthesis_for_mission(db: Session, mission: InvestigationMission) -> AgentFinding | None:
-    explicit = (mission.metadata_json or {}).get("synthesis_finding_id")
-    if explicit:
-        finding = db.get(AgentFinding, explicit)
-        if finding is not None:
-            return finding
-    query = select(AgentFinding).where(
-        AgentFinding.target_id == mission.investigation_id,
-        AgentFinding.category == "investigation_synthesis",
-    )
-    if mission.started_at is not None:
-        query = query.where(AgentFinding.created_at >= mission.started_at)
-    if mission.finished_at is not None:
-        query = query.where(AgentFinding.created_at <= mission.finished_at)
-    return db.scalar(query.order_by(AgentFinding.created_at.desc()))
+def _synthesis_payload(db: Session, mission: InvestigationMission, finding: AgentFinding) -> dict:
+    """Return the synthesis payload bound to one exact persisted mission.
+
+    Current missions store metadata_json.synthesis directly. Older Galileo missions
+    are reconstructed only from finding IDs persisted on that mission's steps.
+    """
+    return (finding.metadata_json or {}).get("synthesis") or _legacy_synthesis_payload(db, mission, finding)
 
 
-def _snapshot(finding: AgentFinding) -> dict:
-    synthesis = (finding.metadata_json or {}).get("synthesis") or {}
+def _snapshot(finding: AgentFinding, synthesis: dict) -> dict:
     count = max(1, int(synthesis.get("finding_count") or 0))
     backed = int(synthesis.get("evidence_backed_count") or 0)
     return {
@@ -39,6 +31,7 @@ def _snapshot(finding: AgentFinding) -> dict:
         "evidence_coverage": round(backed / count, 4),
         "evidence_ids": sorted(set(synthesis.get("evidence_ids") or [])),
         "recommendation": (finding.metadata_json or {}).get("recommendation"),
+        "legacy_reconstructed": bool(synthesis.get("legacy_reconstructed")),
     }
 
 
@@ -99,37 +92,81 @@ def compare_resolution_snapshots(before: dict, after: dict, action_type: str) ->
     }
 
 
+def _apply_resolution(
+    resolution: ScientificResolution,
+    decision: ScientificDecision,
+    followup: InvestigationMission,
+    parent_finding: AgentFinding,
+    followup_finding: AgentFinding,
+    before: dict,
+    after: dict,
+    comparison: dict,
+) -> None:
+    resolution.investigation_id = decision.investigation_id
+    resolution.parent_mission_id = decision.mission_id
+    resolution.followup_mission_id = followup.id
+    resolution.parent_synthesis_finding_id = parent_finding.id
+    resolution.followup_synthesis_finding_id = followup_finding.id
+    resolution.status = comparison["status"]
+    resolution.objective_satisfied = comparison["objective_satisfied"]
+    resolution.resolution_score = comparison["resolution_score"]
+    resolution.summary = (
+        f"Follow-up mission {comparison['status']}: contradictions {before['contradiction_count']}→{after['contradiction_count']}, "
+        f"evidence gaps {before['evidence_gap_count']}→{after['evidence_gap_count']}, "
+        f"evidence coverage {round(before['evidence_coverage']*100)}%→{round(after['evidence_coverage']*100)}%, "
+        f"with {len(comparison['evidence_added_ids'])} new evidence link(s)."
+    )
+    resolution.before_json = before
+    resolution.after_json = after
+    resolution.delta_json = comparison["delta"]
+    resolution.evidence_added_ids = comparison["evidence_added_ids"]
+    resolution.evidence_removed_ids = comparison["evidence_removed_ids"]
+
+
 def assess_scientific_resolution(db: Session, decision_id: str) -> ScientificResolution:
     decision = db.get(ScientificDecision, decision_id)
     if decision is None:
         raise KeyError("Scientific decision not found")
     if not decision.next_mission_id:
         raise ValueError("Decision has no follow-up mission")
+
+    parent = db.get(InvestigationMission, decision.mission_id)
     followup = db.get(InvestigationMission, decision.next_mission_id)
+    if parent is None:
+        raise KeyError("Parent mission not found")
     if followup is None:
         raise KeyError("Follow-up mission not found")
     if followup.status != "completed":
         raise ValueError("Resolution requires a completed follow-up mission")
 
-    existing = db.scalar(select(ScientificResolution).where(ScientificResolution.decision_id == decision.id))
-    if existing is not None:
-        return existing
-
     parent_finding = db.get(AgentFinding, decision.synthesis_finding_id)
-    followup_finding = _synthesis_for_mission(db, followup)
+    followup_finding = _synthesis_finding_for_mission(db, followup)
     if parent_finding is None or followup_finding is None:
         raise ValueError("Both parent and follow-up missions require persisted synthesis findings")
 
-    before = _snapshot(parent_finding)
-    after = _snapshot(followup_finding)
+    parent_synthesis = _synthesis_payload(db, parent, parent_finding)
+    followup_synthesis = _synthesis_payload(db, followup, followup_finding)
+    if not parent_synthesis or not followup_synthesis:
+        raise ValueError("Both parent and follow-up synthesis payloads must be reconstructable from their mission lineage")
+
+    before = _snapshot(parent_finding, parent_synthesis)
+    after = _snapshot(followup_finding, followup_synthesis)
     comparison = compare_resolution_snapshots(before, after, decision.action_type)
 
-    summary = (
-        f"Follow-up mission {comparison['status']}: contradictions {before['contradiction_count']}→{after['contradiction_count']}, "
-        f"evidence gaps {before['evidence_gap_count']}→{after['evidence_gap_count']}, "
-        f"evidence coverage {round(before['evidence_coverage']*100)}%→{round(after['evidence_coverage']*100)}%, "
-        f"with {len(comparison['evidence_added_ids'])} new evidence link(s)."
-    )
+    existing = db.scalar(select(ScientificResolution).where(ScientificResolution.decision_id == decision.id))
+    if existing is not None:
+        compiled_memory = db.scalar(select(ScientificMemory).where(ScientificMemory.resolution_id == existing.id))
+        if compiled_memory is not None:
+            return existing
+        # Correct pre-memory resolution artifacts produced by the historical
+        # investigation-wide synthesis lookup bug. No scientific memory has yet
+        # been compiled from this record, so replacing the deterministic snapshot
+        # fields repairs provenance without rewriting canonical evidence.
+        _apply_resolution(existing, decision, followup, parent_finding, followup_finding, before, after, comparison)
+        db.commit()
+        db.refresh(existing)
+        return existing
+
     resolution = ScientificResolution(
         investigation_id=decision.investigation_id,
         decision_id=decision.id,
@@ -140,13 +177,14 @@ def assess_scientific_resolution(db: Session, decision_id: str) -> ScientificRes
         status=comparison["status"],
         objective_satisfied=comparison["objective_satisfied"],
         resolution_score=comparison["resolution_score"],
-        summary=summary,
-        before_json=before,
-        after_json=after,
-        delta_json=comparison["delta"],
-        evidence_added_ids=comparison["evidence_added_ids"],
-        evidence_removed_ids=comparison["evidence_removed_ids"],
+        summary="",
+        before_json={},
+        after_json={},
+        delta_json={},
+        evidence_added_ids=[],
+        evidence_removed_ids=[],
     )
+    _apply_resolution(resolution, decision, followup, parent_finding, followup_finding, before, after, comparison)
     db.add(resolution)
     db.commit()
     db.refresh(resolution)
