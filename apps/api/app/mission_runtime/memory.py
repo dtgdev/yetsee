@@ -122,27 +122,104 @@ def advisory_memory_context(db: Session, investigation_id: str, action_type: str
                 "summary": memory.summary,
                 "objective_satisfied": bool((memory.lesson_json or {}).get("objective_satisfied")),
                 "prior_action_type": (memory.lesson_json or {}).get("action_type"),
+                "lesson": dict(memory.lesson_json or {}),
             }
             for memory in selected
         ],
     }
 
 
-def apply_memory_to_objective(objective: str, context: dict) -> str:
+def assess_strategy_from_memory(action_type: str, context: dict) -> dict:
+    """Classify whether a proposed strategy should be reused, modified, avoided, or treated as novel.
+
+    Scientific Memory is derived planning context only. This function does not read or alter
+    canonical evidence and never changes scientific confidence.
+    """
+    lessons = context.get("lessons") or []
+    same_action = [item for item in lessons if item.get("prior_action_type") == action_type]
+    relevant = same_action or lessons
+    canonical = {
+        "canonical_evidence": False,
+        "derived_context": True,
+        "proposed_action_type": action_type,
+        "relevant_memory_ids": [item.get("memory_id") for item in relevant if item.get("memory_id")],
+        "prior_action_types": sorted({item.get("prior_action_type") for item in relevant if item.get("prior_action_type")}),
+        "prior_outcomes": [item.get("outcome") for item in relevant if item.get("outcome")],
+    }
+    if not relevant:
+        return {
+            **canonical,
+            "strategy_class": "novel_strategy",
+            "repeat_risk": "low",
+            "rationale": "No relevant prior scientific memory was found for this action.",
+            "adaptation": "Proceed with the proposed strategy and compare its outcome against future scientific memory.",
+        }
+
+    successful_same = [item for item in same_action if item.get("objective_satisfied")]
+    failed_same = [item for item in same_action if item.get("outcome") in {"worsened", "persisting"} or not item.get("objective_satisfied")]
+
+    if successful_same and not failed_same:
+        return {
+            **canonical,
+            "strategy_class": "reuse",
+            "repeat_risk": "low",
+            "rationale": "The same scientific action previously satisfied its objective.",
+            "adaptation": "Reuse the prior strategy where the current scientific conditions are sufficiently similar.",
+        }
+
+    if failed_same:
+        worst = failed_same[0]
+        lesson = worst.get("lesson") or {}
+        added = len(lesson.get("evidence_added_ids") or [])
+        gap_before = int(lesson.get("evidence_gap_before") or 0)
+        gap_after = int(lesson.get("evidence_gap_after") or 0)
+        contradiction_delta = int(lesson.get("contradiction_delta") or 0)
+        coverage_delta = float(lesson.get("evidence_coverage_delta") or 0)
+        exact_repeat_failed = added == 0 and gap_after >= gap_before and coverage_delta <= 0 and contradiction_delta >= 0
+        if exact_repeat_failed:
+            return {
+                **canonical,
+                "strategy_class": "avoid_exact_repeat",
+                "repeat_risk": "high",
+                "rationale": (
+                    f"The same action previously produced {added} new evidence link(s), evidence gaps {gap_before}→{gap_after}, "
+                    f"and contradiction delta {contradiction_delta:+d}."
+                ),
+                "adaptation": "Change the evidence acquisition method, target the unresolved claim directly, or use a different independent source before repeating the mission.",
+            }
+        return {
+            **canonical,
+            "strategy_class": "modify",
+            "repeat_risk": "medium",
+            "rationale": "The same action was attempted previously but did not satisfy the scientific objective.",
+            "adaptation": "Modify the mission scope or evidence strategy rather than repeating the prior follow-up unchanged.",
+        }
+
+    return {
+        **canonical,
+        "strategy_class": "modify",
+        "repeat_risk": "medium",
+        "rationale": "Relevant scientific memory exists, but it does not establish a clearly successful reusable strategy.",
+        "adaptation": "Use the prior lesson to adjust the mission and explicitly compare the new outcome with the previous one.",
+    }
+
+
+def apply_memory_to_objective(objective: str, context: dict, assessment: dict | None = None) -> str:
     """Make memory influence explicit in the mission objective, never implicit."""
     lessons = context.get("lessons") or []
     if not lessons:
         return objective
-    persistent = [item for item in lessons if item.get("memory_type") in {"uncertainty_persisted", "followup_worsened_uncertainty"}]
-    successful = [item for item in lessons if item.get("objective_satisfied")]
-    notes: list[str] = []
-    if persistent:
-        notes.append("do not simply repeat the prior unsuccessful follow-up strategy")
-    if successful:
-        notes.append("reuse the previously successful evidence strategy where scientifically applicable")
-    if not notes:
-        notes.append("compare the new outcome against the prior investigation lesson")
-    return f"{objective} Prior scientific memory is advisory only: {'; '.join(notes)}."
+    assessment = assessment or assess_strategy_from_memory(context.get("action_type") or "", context)
+    strategy = assessment.get("strategy_class")
+    if strategy == "avoid_exact_repeat":
+        note = "avoid an exact repeat of the prior unsuccessful strategy; change the evidence source, acquisition method, or claim target"
+    elif strategy == "modify":
+        note = "modify the prior strategy using the recorded scientific lesson"
+    elif strategy == "reuse":
+        note = "reuse the previously successful strategy where scientifically applicable"
+    else:
+        note = "compare the new outcome against prior scientific memory"
+    return f"{objective} Prior scientific memory is advisory only: {note}."
 
 
 def compile_scientific_memory(db: Session, resolution_id: str) -> ScientificMemory:
