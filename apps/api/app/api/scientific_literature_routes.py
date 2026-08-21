@@ -4,18 +4,58 @@ from urllib.error import HTTPError, URLError
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.api.deps import DB
+from app.models.investigation import Investigation
 from app.scientific_literature.evidence import bind_passage_to_investigation, list_literature_evidence
 from app.scientific_literature.pubmed import ingest_pubmed_article
 
 router = APIRouter()
 
 
+class ScientificInvestigationRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    slug: str = Field(min_length=1, max_length=255)
+    research_question: str = Field(min_length=1, max_length=4000)
+    domain: str = Field(default="biomedicine", min_length=1, max_length=120)
+
+
 class LiteratureEvidenceRequest(BaseModel):
     passage_id: str = Field(min_length=1)
     stance: str = "contextual"
     weight: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+@router.post("/scientific-investigations")
+def create_scientific_investigation(request: ScientificInvestigationRequest, db: DB) -> dict:
+    existing = db.scalar(select(Investigation).where(Investigation.slug == request.slug))
+    if existing is not None:
+        return {"created": False, "investigation": existing}
+
+    investigation = Investigation(
+        title=request.title,
+        slug=request.slug,
+        status="collecting",
+        confidence=0.0,
+        summary=request.research_question,
+        hypothesis=None,
+        counter_thesis=None,
+        attributes={
+            "investigation_type": "scientific_literature",
+            "research_question": request.research_question,
+            "domain": request.domain,
+            "evidence_policy": {
+                "canonical_sources": ["scientific_passage"],
+                "derived_claims_are_evidence": False,
+                "memory_is_evidence": False,
+            },
+        },
+    )
+    db.add(investigation)
+    db.commit()
+    db.refresh(investigation)
+    return {"created": True, "investigation": investigation}
 
 
 @router.post("/scientific-literature/pubmed/{pmid}/ingest")
