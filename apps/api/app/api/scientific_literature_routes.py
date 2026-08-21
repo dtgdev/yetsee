@@ -45,6 +45,7 @@ class LiteratureEvidenceRequest(BaseModel):
 
 
 class GroundScientificClaimRequest(BaseModel):
+    investigation_id: str = Field(min_length=1)
     passage_id: str = Field(min_length=1)
     claim_text: str = Field(min_length=1, max_length=4000)
     subject_kind: str = Field(min_length=1, max_length=80)
@@ -169,6 +170,7 @@ def ground_scientific_claim(request: GroundScientificClaimRequest, db: DB) -> di
     try:
         claim, relationship, created = ground_claim_relationship(
             db,
+            investigation_id=request.investigation_id,
             passage_id=request.passage_id,
             claim_text=request.claim_text,
             subject_kind=request.subject_kind,
@@ -183,8 +185,11 @@ def ground_scientific_claim(request: GroundScientificClaimRequest, db: DB) -> di
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {
         "created": created,
+        "investigation_id": request.investigation_id,
         "claim": {
             "id": claim.id,
             "publication_id": claim.publication_id,
