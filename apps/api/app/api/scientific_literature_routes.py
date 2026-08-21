@@ -14,6 +14,22 @@ from app.scientific_literature.pubmed import ingest_pubmed_article
 router = APIRouter()
 
 
+def _serialize_investigation(investigation: Investigation) -> dict:
+    return {
+        "id": investigation.id,
+        "title": investigation.title,
+        "slug": investigation.slug,
+        "status": investigation.status,
+        "confidence": investigation.confidence,
+        "summary": investigation.summary,
+        "hypothesis": investigation.hypothesis,
+        "counter_thesis": investigation.counter_thesis,
+        "attributes": investigation.attributes,
+        "created_at": investigation.created_at.isoformat() if investigation.created_at else None,
+        "updated_at": investigation.updated_at.isoformat() if investigation.updated_at else None,
+    }
+
+
 class ScientificInvestigationRequest(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     slug: str = Field(min_length=1, max_length=255)
@@ -31,7 +47,7 @@ class LiteratureEvidenceRequest(BaseModel):
 def create_scientific_investigation(request: ScientificInvestigationRequest, db: DB) -> dict:
     existing = db.scalar(select(Investigation).where(Investigation.slug == request.slug))
     if existing is not None:
-        return {"created": False, "investigation": existing}
+        return {"created": False, "investigation": _serialize_investigation(existing)}
 
     investigation = Investigation(
         title=request.title,
@@ -55,7 +71,7 @@ def create_scientific_investigation(request: ScientificInvestigationRequest, db:
     db.add(investigation)
     db.commit()
     db.refresh(investigation)
-    return {"created": True, "investigation": investigation}
+    return {"created": True, "investigation": _serialize_investigation(investigation)}
 
 
 @router.post("/scientific-literature/pubmed/{pmid}/ingest")
