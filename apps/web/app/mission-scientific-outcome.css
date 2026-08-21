@@ -1,0 +1,100 @@
+/* Mission scientific outcome — execution success is not scientific success. */
+
+.missionScientificOutcome {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) 28px minmax(190px, 1fr) minmax(260px, 1.8fr);
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e8edf4;
+  background: #fbfcfe;
+}
+
+.missionScientificOutcome > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.missionScientificOutcome span {
+  color: #7b8798;
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.missionScientificOutcome strong {
+  color: #172033;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.missionScientificOutcome small {
+  color: #8793a4;
+  font-size: 6px;
+  line-height: 1.4;
+}
+
+.missionScientificOutcome > i {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid #dce4ee;
+  border-radius: 50%;
+  background: #fff;
+  color: #6f7d90;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.missionScientificOutcome > p {
+  margin: 0;
+  border-left: 2px solid #d8e0ea;
+  padding-left: 12px;
+  color: #5f6d80;
+  font-size: 7px;
+  line-height: 1.5;
+}
+
+.missionScientificOutcome.resolved {
+  background: #f5fbf7;
+}
+.missionScientificOutcome.resolved > div:nth-of-type(2) strong,
+.missionScientificOutcome.resolved > div:nth-of-type(2) small { color: #15743a; }
+.missionScientificOutcome.resolved > p { border-left-color: #78c997; }
+
+.missionScientificOutcome.improved {
+  background: #f6f9ff;
+}
+.missionScientificOutcome.improved > div:nth-of-type(2) strong,
+.missionScientificOutcome.improved > div:nth-of-type(2) small { color: #245fc0; }
+.missionScientificOutcome.improved > p { border-left-color: #82aef2; }
+
+.missionScientificOutcome.persisting {
+  background: #fffaf2;
+}
+.missionScientificOutcome.persisting > div:nth-of-type(2) strong,
+.missionScientificOutcome.persisting > div:nth-of-type(2) small { color: #9a620e; }
+.missionScientificOutcome.persisting > p { border-left-color: #e6bd70; }
+
+.missionScientificOutcome.worsened {
+  background: #fff6f6;
+}
+.missionScientificOutcome.worsened > div:nth-of-type(2) strong,
+.missionScientificOutcome.worsened > div:nth-of-type(2) small { color: #b52e2e; }
+.missionScientificOutcome.worsened > p { border-left-color: #df8585; }
+
+.missionScientificOutcome.pending > div:nth-of-type(2) strong { color: #6c7788; }
+
+@media (max-width: 900px) {
+  .missionScientificOutcome {
+    grid-template-columns: 1fr 28px 1fr;
+  }
+  .missionScientificOutcome > p {
+    grid-column: 1 / -1;
+    margin-top: 2px;
+  }
+}
