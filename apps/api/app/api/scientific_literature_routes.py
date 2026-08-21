@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.api.deps import DB
 from app.models.investigation import Investigation
 from app.scientific_literature.evidence import bind_passage_to_investigation, list_literature_evidence
+from app.scientific_literature.grounding import ground_claim_relationship
 from app.scientific_literature.pubmed import ingest_pubmed_article
 
 router = APIRouter()
@@ -41,6 +42,20 @@ class LiteratureEvidenceRequest(BaseModel):
     passage_id: str = Field(min_length=1)
     stance: str = "contextual"
     weight: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class GroundScientificClaimRequest(BaseModel):
+    passage_id: str = Field(min_length=1)
+    claim_text: str = Field(min_length=1, max_length=4000)
+    subject_kind: str = Field(min_length=1, max_length=80)
+    subject_name: str = Field(min_length=1, max_length=255)
+    subject_key: str = Field(min_length=1, max_length=320)
+    predicate: str = Field(min_length=1, max_length=100)
+    object_kind: str = Field(min_length=1, max_length=80)
+    object_name: str = Field(min_length=1, max_length=255)
+    object_key: str = Field(min_length=1, max_length=320)
+    extraction_method: str = Field(default="manual", min_length=1, max_length=80)
+    extraction_version: str = Field(default="l2-v1", min_length=1, max_length=80)
 
 
 @router.post("/scientific-investigations")
@@ -147,3 +162,47 @@ def investigation_literature_evidence(investigation_id: str, db: DB) -> list[dic
         return list_literature_evidence(db, investigation_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/scientific-literature/claims/ground")
+def ground_scientific_claim(request: GroundScientificClaimRequest, db: DB) -> dict:
+    try:
+        claim, relationship, created = ground_claim_relationship(
+            db,
+            passage_id=request.passage_id,
+            claim_text=request.claim_text,
+            subject_kind=request.subject_kind,
+            subject_name=request.subject_name,
+            subject_key=request.subject_key,
+            predicate=request.predicate,
+            object_kind=request.object_kind,
+            object_name=request.object_name,
+            object_key=request.object_key,
+            extraction_method=request.extraction_method,
+            extraction_version=request.extraction_version,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "created": created,
+        "claim": {
+            "id": claim.id,
+            "publication_id": claim.publication_id,
+            "passage_id": claim.passage_id,
+            "claim_text": claim.claim_text,
+            "claim_type": claim.claim_type,
+            "extraction_method": claim.extraction_method,
+            "extraction_version": claim.extraction_version,
+            "canonical_evidence": claim.canonical_evidence,
+            "extraction": claim.extraction_json,
+        },
+        "relationship": {
+            "id": relationship.id,
+            "source_entity_id": relationship.source_entity_id,
+            "target_entity_id": relationship.target_entity_id,
+            "kind": relationship.kind,
+            "confidence": relationship.confidence,
+            "evidence_ids": relationship.evidence_ids,
+            "provenance": relationship.provenance,
+        },
+    }
