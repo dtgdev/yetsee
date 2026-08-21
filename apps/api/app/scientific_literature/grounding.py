@@ -4,6 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.entity import Entity
+from app.models.evidence import EvidenceLink
+from app.models.investigation import Investigation
 from app.models.relationship import Relationship
 from app.models.scientific_literature import ScientificClaim, ScientificPassage, ScientificPublication
 
@@ -36,6 +38,7 @@ def ground_claim_relationship(
     object_kind: str,
     object_name: str,
     object_key: str,
+    investigation_id: str | None = None,
     extraction_method: str = "manual",
     extraction_version: str = "l2-v1",
 ) -> tuple[ScientificClaim, Relationship, bool]:
@@ -45,6 +48,18 @@ def ground_claim_relationship(
     publication = db.get(ScientificPublication, passage.publication_id)
     if publication is None:
         raise KeyError("Scientific publication not found")
+
+    if investigation_id is not None:
+        if db.get(Investigation, investigation_id) is None:
+            raise KeyError("Investigation not found")
+        evidence_link = db.scalar(
+            select(EvidenceLink).where(
+                EvidenceLink.investigation_id == investigation_id,
+                EvidenceLink.scientific_passage_id == passage_id,
+            )
+        )
+        if evidence_link is None:
+            raise ValueError("Scientific passage must be attached to the investigation as evidence before grounding")
 
     existing_claim = db.scalar(
         select(ScientificClaim).where(
@@ -56,6 +71,13 @@ def ground_claim_relationship(
         relationship_id = existing_claim.extraction_json.get("relationship_id")
         relationship = db.get(Relationship, relationship_id) if relationship_id else None
         if relationship is not None:
+            if investigation_id is not None:
+                relationship.provenance = {
+                    **relationship.provenance,
+                    "investigation_ids": sorted(set([*relationship.provenance.get("investigation_ids", []), investigation_id])),
+                }
+                db.commit()
+                db.refresh(relationship)
             return existing_claim, relationship, False
 
     subject = _entity(db, kind=subject_kind, canonical_name=subject_name, canonical_key=subject_key)
@@ -105,6 +127,7 @@ def ground_claim_relationship(
         "publication_ids": sorted(set([*relationship.provenance.get("publication_ids", []), publication.id])),
         "pmids": sorted(set([*relationship.provenance.get("pmids", []), *([publication.pmid] if publication.pmid else [])])),
         "dois": sorted(set([*relationship.provenance.get("dois", []), *([publication.doi] if publication.doi else [])])),
+        "investigation_ids": sorted(set([*relationship.provenance.get("investigation_ids", []), *([investigation_id] if investigation_id else [])])),
         "canonical_evidence_kind": "scientific_passage",
     }
     claim.extraction_json = {
@@ -115,6 +138,7 @@ def ground_claim_relationship(
         "relationship_id": relationship.id,
         "source_passage_id": passage.id,
         "source_publication_id": publication.id,
+        "investigation_id": investigation_id,
     }
     db.commit()
     db.refresh(claim)
