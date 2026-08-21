@@ -26,6 +26,14 @@ def _entity(db: Session, *, kind: str, canonical_name: str, canonical_key: str) 
     return entity
 
 
+def _with_investigation_context(payload: dict, investigation_id: str) -> dict:
+    return {
+        **payload,
+        "investigation_id": payload.get("investigation_id") or investigation_id,
+        "investigation_ids": sorted(set([*payload.get("investigation_ids", []), investigation_id])),
+    }
+
+
 def ground_claim_relationship(
     db: Session,
     *,
@@ -72,11 +80,16 @@ def ground_claim_relationship(
         relationship = db.get(Relationship, relationship_id) if relationship_id else None
         if relationship is not None:
             if investigation_id is not None:
+                existing_claim.extraction_json = _with_investigation_context(
+                    existing_claim.extraction_json,
+                    investigation_id,
+                )
                 relationship.provenance = {
                     **relationship.provenance,
                     "investigation_ids": sorted(set([*relationship.provenance.get("investigation_ids", []), investigation_id])),
                 }
                 db.commit()
+                db.refresh(existing_claim)
                 db.refresh(relationship)
             return existing_claim, relationship, False
 
@@ -138,8 +151,9 @@ def ground_claim_relationship(
         "relationship_id": relationship.id,
         "source_passage_id": passage.id,
         "source_publication_id": publication.id,
-        "investigation_id": investigation_id,
     }
+    if investigation_id is not None:
+        claim.extraction_json = _with_investigation_context(claim.extraction_json, investigation_id)
     db.commit()
     db.refresh(claim)
     db.refresh(relationship)
