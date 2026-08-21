@@ -1,11 +1,14 @@
 from datetime import date
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.db.base import Base
+from app.models.evidence import EvidenceLink
+from app.models.investigation import Investigation
 from app.models.scientific_literature import ScientificPassage, ScientificPublication
 from app.scientific_literature.grounding import ground_claim_relationship
 
@@ -51,9 +54,31 @@ def _source(db: Session, *, pmid: str, doi: str, passage_hash: str, publication_
     return passage
 
 
-def _ground(db: Session, passage_id: str, claim_text: str):
+def _investigation(db: Session, slug: str = "osimertinib-resistance") -> Investigation:
+    investigation = Investigation(title="Osimertinib resistance", slug=slug, attributes={})
+    db.add(investigation)
+    db.commit()
+    db.refresh(investigation)
+    return investigation
+
+
+def _attach(db: Session, investigation: Investigation, passage: ScientificPassage) -> EvidenceLink:
+    link = EvidenceLink(
+        investigation_id=investigation.id,
+        scientific_passage_id=passage.id,
+        stance="supporting",
+        weight=1.0,
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return link
+
+
+def _ground(db: Session, passage_id: str, claim_text: str, investigation_id: str | None = None):
     return ground_claim_relationship(
         db,
+        investigation_id=investigation_id,
         passage_id=passage_id,
         claim_text=claim_text,
         subject_kind="genomic_alteration",
@@ -102,5 +127,45 @@ def test_same_relationship_aggregates_independent_publications():
         assert set(same_relationship.provenance["pmids"]) == {"36849494", "36849516"}
         assert set(same_relationship.provenance["dois"]) == {"10.1000/flaura", "10.1000/aura3"}
         assert set(same_relationship.provenance["claim_ids"]) == {first_claim.id, second_claim.id}
+    finally:
+        db.close()
+
+
+def test_investigation_scoped_grounding_requires_attached_passage():
+    db = _db()
+    try:
+        investigation = _investigation(db)
+        passage = _source(db, pmid="36849494", doi="10.1000/flaura", passage_hash="1" * 64, publication_hash="2" * 64)
+
+        with pytest.raises(ValueError, match="must be attached to the investigation"):
+            _ground(
+                db,
+                passage.id,
+                "MET amplification contributes to acquired osimertinib resistance.",
+                investigation.id,
+            )
+    finally:
+        db.close()
+
+
+def test_investigation_scoped_grounding_records_investigation_provenance():
+    db = _db()
+    try:
+        investigation = _investigation(db)
+        passage = _source(db, pmid="36849494", doi="10.1000/flaura", passage_hash="3" * 64, publication_hash="4" * 64)
+        _attach(db, investigation, passage)
+
+        claim, relationship, created = _ground(
+            db,
+            passage.id,
+            "MET amplification contributes to acquired osimertinib resistance.",
+            investigation.id,
+        )
+
+        assert created is True
+        assert claim.extraction_json["investigation_id"] == investigation.id
+        assert relationship.provenance["investigation_ids"] == [investigation.id]
+        assert relationship.provenance["passage_ids"] == [passage.id]
+        assert relationship.provenance["pmids"] == ["36849494"]
     finally:
         db.close()
