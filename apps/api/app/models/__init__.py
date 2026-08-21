@@ -13,6 +13,7 @@ from app.models.observation import Observation
 from app.models.opportunity import Opportunity
 from app.models.relationship import Relationship
 from app.models.reasoning import ReasoningRun, ReasoningResult
+from app.models.scientific_literature import ScientificClaim, ScientificPassage, ScientificPublication
 from app.models.signal import Signal
 from app.models.semantic import SemanticConcept, SemanticRun
 from app.models.user import User
@@ -22,6 +23,7 @@ __all__ = [
     "ScientificDecision", "ScientificResolution", "ScientificMemory", "Observation", "Signal", "Entity",
     "Relationship", "ReasoningRun", "ReasoningResult", "Investigation", "Hypothesis", "HypothesisEvidenceLink",
     "HypothesisConfidenceHistory", "InvestigationRevision", "KernelEvent", "KernelCommandLog", "PluginRecord",
-    "WorkflowRun", "GraphRun", "EvidenceLink", "Feature", "FeatureRun", "Opportunity", "ConnectorRun",
-    "ConnectorState", "DetectorRun", "DiscoveryCandidate", "SemanticConcept", "SemanticRun",
+    "WorkflowRun", "GraphRun", "EvidenceLink", "ScientificPublication", "ScientificPassage", "ScientificClaim",
+    "Feature", "FeatureRun", "Opportunity", "ConnectorRun", "ConnectorState", "DetectorRun",
+    "DiscoveryCandidate", "SemanticConcept", "SemanticRun",
 ]
