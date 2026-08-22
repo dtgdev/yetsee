@@ -34,7 +34,7 @@ export default function InvestigationAgentActions({ investigationId }: { investi
 
   async function loadEvidenceProfiles(){
     try{
-      const response=await fetch(`/api/v1/investigations/${investigationId}/evidence-profiles`,{cache:"no-store"});
+      const response=await fetch(`${API}/api/v1/investigations/${investigationId}/evidence-profiles`,{cache:"no-store"});
       if(!response.ok)return;
       const body=await response.json();
       setProfiles(Array.isArray(body)?body:[]);
@@ -66,7 +66,7 @@ export default function InvestigationAgentActions({ investigationId }: { investi
       await Promise.all([loadDecisionMission(),loadEvidenceProfiles()]);
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Request failed");
+      setMessage(error instanceof Error?error.message:"Request failed");
     } finally {
       setBusy(null);
     }
