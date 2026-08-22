@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.api.deps import DB
+from app.investigation_runtime.evidence_accounting import investigation_evidence_accounting
 from app.models.investigation import Investigation
 from app.scientific_literature.evidence import bind_passage_to_investigation, list_literature_evidence
 from app.scientific_literature.evidence_profile import investigation_evidence_profiles, relationship_evidence_profile
@@ -51,6 +52,11 @@ def add_literature_evidence(investigation_id:str,request:LiteratureEvidenceReque
 def investigation_literature_evidence(investigation_id:str,db:DB)->list[dict]:
     try:return list_literature_evidence(db,investigation_id)
     except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+
+@router.get("/investigations/{investigation_id}/evidence-accounting")
+def investigation_canonical_evidence_accounting(investigation_id:str,db:DB)->dict:
+    if db.get(Investigation,investigation_id) is None:raise HTTPException(status_code=404,detail="Investigation not found")
+    return investigation_evidence_accounting(db,investigation_id)
 
 @router.get("/investigations/{investigation_id}/evidence-profiles")
 def investigation_scientific_evidence_profiles(investigation_id:str,db:DB)->list[dict]:
