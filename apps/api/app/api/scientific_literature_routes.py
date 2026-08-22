@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.api.deps import DB
 from app.investigation_runtime.evidence_accounting import investigation_evidence_accounting
 from app.models.investigation import Investigation
+from app.scientific_literature.candidate_extraction import extract_investigation_claim_candidates
 from app.scientific_literature.evidence import bind_passage_to_investigation, list_literature_evidence
 from app.scientific_literature.evidence_profile import investigation_evidence_profiles, relationship_evidence_profile
 from app.scientific_literature.grounding import ground_claim_relationship
@@ -51,6 +52,11 @@ def add_literature_evidence(investigation_id:str,request:LiteratureEvidenceReque
 @router.get("/investigations/{investigation_id}/literature-evidence")
 def investigation_literature_evidence(investigation_id:str,db:DB)->list[dict]:
     try:return list_literature_evidence(db,investigation_id)
+    except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+
+@router.get("/investigations/{investigation_id}/claim-candidates")
+def investigation_claim_candidates(investigation_id:str,db:DB)->list[dict]:
+    try:return extract_investigation_claim_candidates(db,investigation_id)
     except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
 
 @router.get("/investigations/{investigation_id}/evidence-accounting")
