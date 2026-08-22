@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.db.base import Base
+from app.investigation_runtime.evidence_accounting import investigation_evidence_accounting
 from app.models.evidence import EvidenceLink
 from app.models.investigation import Investigation
 from app.models.scientific_literature import ScientificPassage, ScientificPublication
@@ -62,11 +63,11 @@ def _investigation(db: Session, slug: str = "osimertinib-resistance") -> Investi
     return investigation
 
 
-def _attach(db: Session, investigation: Investigation, passage: ScientificPassage) -> EvidenceLink:
+def _attach(db: Session, investigation: Investigation, passage: ScientificPassage, stance: str = "supporting") -> EvidenceLink:
     link = EvidenceLink(
         investigation_id=investigation.id,
         scientific_passage_id=passage.id,
-        stance="supporting",
+        stance=stance,
         weight=1.0,
     )
     db.add(link)
@@ -167,5 +168,28 @@ def test_investigation_scoped_grounding_records_investigation_provenance():
         assert relationship.provenance["investigation_ids"] == [investigation.id]
         assert relationship.provenance["passage_ids"] == [passage.id]
         assert relationship.provenance["pmids"] == ["36849494"]
+    finally:
+        db.close()
+
+
+def test_canonical_evidence_accounting_counts_literature_and_publications():
+    db = _db()
+    try:
+        investigation = _investigation(db, "evidence-accounting")
+        first = _source(db, pmid="36849494", doi="10.1000/flaura", passage_hash="5" * 64, publication_hash="6" * 64)
+        second = _source(db, pmid="36849516", doi="10.1000/aura3", passage_hash="7" * 64, publication_hash="8" * 64)
+        _attach(db, investigation, first, "supporting")
+        _attach(db, investigation, second, "supporting")
+
+        result = investigation_evidence_accounting(db, investigation.id)
+
+        assert result["canonical_evidence_count"] == 2
+        assert result["literature_evidence_count"] == 2
+        assert result["independent_source_count"] == 2
+        assert result["independent_publication_count"] == 2
+        assert result["supporting_count"] == 2
+        assert result["contradicting_count"] == 0
+        assert {item["publication"]["pmid"] for item in result["literature_items"]} == {"36849494", "36849516"}
+        assert result["policy"]["derived_claims_are_evidence"] is False
     finally:
         db.close()
