@@ -17,6 +17,7 @@ _RESISTANCE_MECHANISM_RE = re.compile(
     r"resistance-related genomic alterations?[^.;:]*[:;,]?)[^.;]*",
     re.IGNORECASE,
 )
+_RESISTANCE_CONTEXT_RE = re.compile(r"\b(?:acquired\s+)?resistance\b", re.IGNORECASE)
 _ALTERATION_RE = re.compile(
     r"\b([A-Z][A-Z0-9-]{1,15})\s+(amplification|[A-Z]\d+[A-Z](?:/X)?\s+mutations?|mutations?)\b",
 )
@@ -95,9 +96,6 @@ def _candidate_id(*parts: str) -> str:
 
 def _drug_resistance_object(text: str) -> tuple[str, str] | None:
     lower = text.lower()
-    # Conservative v1: only map a treatment when it is explicitly present in
-    # the assertion sentence. This vocabulary is intentionally small and can be
-    # replaced by a terminology service later without changing the contract.
     for drug in ("osimertinib",):
         if drug in lower:
             name = f"Acquired {drug} resistance"
@@ -105,14 +103,26 @@ def _drug_resistance_object(text: str) -> tuple[str, str] | None:
     return None
 
 
+def _explicit_adjacent_resistance_context(previous_sentence: str, assertion_sentence: str) -> tuple[str, str] | None:
+    direct = _drug_resistance_object(assertion_sentence)
+    if direct is not None:
+        return direct
+    if not previous_sentence:
+        return None
+    # Allow only one immediately preceding sentence, and only when that sentence
+    # explicitly names both resistance and the treatment. This preserves source
+    # meaning without inheriting arbitrary passage-level co-occurrence.
+    if _RESISTANCE_CONTEXT_RE.search(previous_sentence) is None:
+        return None
+    return _drug_resistance_object(previous_sentence)
+
+
 def _normalized_alteration(gene: str, alteration: str) -> str:
     gene = gene.upper()
     normalized = alteration.strip()
     if normalized.lower() == "amplification":
         return f"{gene} amplification"
-    if normalized.lower() == "mutations":
-        return f"{gene} mutation"
-    if normalized.lower() == "mutation":
+    if normalized.lower() in {"mutations", "mutation"}:
         return f"{gene} mutation"
     return f"{gene} {normalized.upper().replace(' MUTATIONS', '').replace(' MUTATION', '')} mutation"
 
@@ -124,14 +134,15 @@ def _extract_explicit_resistance_mechanisms(
     publication: ScientificPublication,
 ) -> list[ClaimCandidate]:
     candidates: list[ClaimCandidate] = []
-    for sentence in _SENTENCE_SPLIT_RE.split(passage.text.strip()):
-        if not sentence:
-            continue
+    sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_RE.split(passage.text.strip()) if sentence.strip()]
+    previous_sentence = ""
+    for sentence in sentences:
         if _RESISTANCE_MECHANISM_RE.search(sentence) is None:
+            previous_sentence = sentence
             continue
-        resistance = _drug_resistance_object(sentence)
+        resistance = _explicit_adjacent_resistance_context(previous_sentence, sentence)
         if resistance is None:
-            # Do not inherit drug context from another sentence in v1.
+            previous_sentence = sentence
             continue
         object_name, object_key = resistance
         seen_subjects: set[str] = set()
@@ -174,6 +185,7 @@ def _extract_explicit_resistance_mechanisms(
                     extraction_confidence=0.98,
                 )
             )
+        previous_sentence = sentence
     return candidates
 
 
