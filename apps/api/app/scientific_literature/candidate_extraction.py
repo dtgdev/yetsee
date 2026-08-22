@@ -45,6 +45,7 @@ class ClaimCandidate:
     extraction_method: str
     extraction_version: str
     extraction_confidence: float
+    context_source: str
     requires_review: bool = True
     canonical_evidence: bool = False
 
@@ -53,23 +54,16 @@ class ClaimCandidate:
             "candidate_id": self.candidate_id,
             "investigation_id": self.investigation_id,
             "claim": {
-                "subject": {
-                    "kind": self.subject_kind,
-                    "name": self.subject_name,
-                    "key": self.subject_key,
-                },
+                "subject": {"kind": self.subject_kind, "name": self.subject_name, "key": self.subject_key},
                 "predicate": self.predicate,
-                "object": {
-                    "kind": self.object_kind,
-                    "name": self.object_name,
-                    "key": self.object_key,
-                },
+                "object": {"kind": self.object_kind, "name": self.object_name, "key": self.object_key},
                 "assertion_text": self.assertion_text,
             },
             "extraction": {
                 "method": self.extraction_method,
                 "version": self.extraction_version,
                 "confidence": self.extraction_confidence,
+                "context_source": self.context_source,
                 "requires_review": self.requires_review,
                 "canonical_evidence": self.canonical_evidence,
             },
@@ -97,24 +91,37 @@ def _candidate_id(*parts: str) -> str:
 def _drug_resistance_object(text: str) -> tuple[str, str] | None:
     lower = text.lower()
     for drug in ("osimertinib",):
-        if drug in lower:
+        if drug in lower and _RESISTANCE_CONTEXT_RE.search(text):
             name = f"Acquired {drug} resistance"
             return name, f"drug-resistance:{drug}-acquired"
     return None
 
 
-def _explicit_adjacent_resistance_context(previous_sentence: str, assertion_sentence: str) -> tuple[str, str] | None:
+def _resolve_resistance_context(
+    *,
+    assertion_sentence: str,
+    preceding_sentences: list[str],
+    publication_title: str,
+) -> tuple[tuple[str, str] | None, str | None]:
     direct = _drug_resistance_object(assertion_sentence)
     if direct is not None:
-        return direct
-    if not previous_sentence:
-        return None
-    # Allow only one immediately preceding sentence, and only when that sentence
-    # explicitly names both resistance and the treatment. This preserves source
-    # meaning without inheriting arbitrary passage-level co-occurrence.
-    if _RESISTANCE_CONTEXT_RE.search(previous_sentence) is None:
-        return None
-    return _drug_resistance_object(previous_sentence)
+        return direct, "assertion_sentence"
+
+    # Publication titles are strong, explicit scientific context. The two live
+    # Nature Communications records name both acquired resistance and
+    # osimertinib in their titles, so using that context does not infer beyond
+    # what the source itself states.
+    title_context = _drug_resistance_object(publication_title)
+    if title_context is not None:
+        return title_context, "publication_title"
+
+    # Otherwise search only a short bounded discourse window. Every accepted
+    # context sentence must itself explicitly name both resistance and drug.
+    for sentence in reversed(preceding_sentences[-3:]):
+        context = _drug_resistance_object(sentence)
+        if context is not None:
+            return context, "preceding_sentence"
+    return None, None
 
 
 def _normalized_alteration(gene: str, alteration: str) -> str:
@@ -135,14 +142,18 @@ def _extract_explicit_resistance_mechanisms(
 ) -> list[ClaimCandidate]:
     candidates: list[ClaimCandidate] = []
     sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_RE.split(passage.text.strip()) if sentence.strip()]
-    previous_sentence = ""
+    preceding: list[str] = []
     for sentence in sentences:
         if _RESISTANCE_MECHANISM_RE.search(sentence) is None:
-            previous_sentence = sentence
+            preceding.append(sentence)
             continue
-        resistance = _explicit_adjacent_resistance_context(previous_sentence, sentence)
-        if resistance is None:
-            previous_sentence = sentence
+        resistance, context_source = _resolve_resistance_context(
+            assertion_sentence=sentence,
+            preceding_sentences=preceding,
+            publication_title=publication.title,
+        )
+        if resistance is None or context_source is None:
+            preceding.append(sentence)
             continue
         object_name, object_key = resistance
         seen_subjects: set[str] = set()
@@ -183,9 +194,10 @@ def _extract_explicit_resistance_mechanisms(
                     extraction_method="deterministic_explicit_assertion",
                     extraction_version="l3-v1",
                     extraction_confidence=0.98,
+                    context_source=context_source,
                 )
             )
-        previous_sentence = sentence
+        preceding.append(sentence)
     return candidates
 
 
