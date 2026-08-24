@@ -59,3 +59,30 @@ class ScientificClaim(UUIDMixin, TimestampMixin, Base):
     extraction_version: Mapped[str | None] = mapped_column(String(80))
     extraction_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     canonical_evidence: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+
+class ScientificClaimCandidateReview(UUIDMixin, TimestampMixin, Base):
+    __tablename__ = "scientific_claim_candidate_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "investigation_id",
+            "candidate_id",
+            name="uq_scientific_claim_candidate_review",
+        ),
+    )
+
+    investigation_id: Mapped[str] = mapped_column(
+        ForeignKey("investigations.id"), index=True, nullable=False
+    )
+    candidate_id: Mapped[str] = mapped_column(String(40), index=True, nullable=False)
+    decision: Mapped[str] = mapped_column(String(24), index=True, nullable=False)
+    reviewer: Mapped[str] = mapped_column(String(255), default="human", nullable=False)
+    rationale: Mapped[str | None] = mapped_column(Text)
+    candidate_snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    reviewed_claim_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    scientific_claim_id: Mapped[str | None] = mapped_column(
+        ForeignKey("scientific_claims.id"), index=True
+    )
+    relationship_id: Mapped[str | None] = mapped_column(
+        ForeignKey("relationships.id"), index=True
+    )
