@@ -10,6 +10,7 @@ from app.api.deps import DB
 from app.investigation_runtime.evidence_accounting import investigation_evidence_accounting
 from app.models.investigation import Investigation
 from app.scientific_literature.candidate_extraction import extract_investigation_claim_candidates
+from app.scientific_literature.candidate_review import list_candidate_reviews, review_candidate
 from app.scientific_literature.evidence import bind_passage_to_investigation, list_literature_evidence
 from app.scientific_literature.evidence_profile import investigation_evidence_profiles, relationship_evidence_profile
 from app.scientific_literature.grounding import ground_claim_relationship
@@ -27,6 +28,8 @@ class LiteratureEvidenceRequest(BaseModel):
     passage_id:str=Field(min_length=1); stance:str="contextual"; weight:float=Field(default=1.0,ge=0.0,le=1.0)
 class GroundScientificClaimRequest(BaseModel):
     investigation_id:str=Field(min_length=1); passage_id:str=Field(min_length=1); claim_text:str=Field(min_length=1,max_length=4000); subject_kind:str=Field(min_length=1,max_length=80); subject_name:str=Field(min_length=1,max_length=255); subject_key:str=Field(min_length=1,max_length=320); predicate:str=Field(min_length=1,max_length=100); object_kind:str=Field(min_length=1,max_length=80); object_name:str=Field(min_length=1,max_length=255); object_key:str=Field(min_length=1,max_length=320); extraction_method:str=Field(default="manual",min_length=1,max_length=80); extraction_version:str=Field(default="l2-v1",min_length=1,max_length=80)
+class ClaimCandidateReviewRequest(BaseModel):
+    decision:str=Field(pattern="^(approve|reject)$"); reviewer:str=Field(default="human",min_length=1,max_length=255); rationale:str|None=Field(default=None,max_length=4000)
 
 @router.post("/scientific-investigations")
 def create_scientific_investigation(request:ScientificInvestigationRequest,db:DB)->dict:
@@ -58,6 +61,18 @@ def investigation_literature_evidence(investigation_id:str,db:DB)->list[dict]:
 def investigation_claim_candidates(investigation_id:str,db:DB)->list[dict]:
     try:return extract_investigation_claim_candidates(db,investigation_id)
     except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+
+@router.get("/investigations/{investigation_id}/claim-candidate-reviews")
+def investigation_claim_candidate_reviews(investigation_id:str,db:DB)->list[dict]:
+    if db.get(Investigation,investigation_id) is None:raise HTTPException(status_code=404,detail="Investigation not found")
+    return list_candidate_reviews(db,investigation_id)
+
+@router.post("/investigations/{investigation_id}/claim-candidates/{candidate_id}/review")
+def review_investigation_claim_candidate(investigation_id:str,candidate_id:str,request:ClaimCandidateReviewRequest,db:DB)->dict:
+    try:review,created=review_candidate(db,investigation_id=investigation_id,candidate_id=candidate_id,decision=request.decision,reviewer=request.reviewer,rationale=request.rationale)
+    except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+    except ValueError as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
+    return {"created":created,"review":review}
 
 @router.get("/investigations/{investigation_id}/evidence-accounting")
 def investigation_canonical_evidence_accounting(investigation_id:str,db:DB)->dict:
