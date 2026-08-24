@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ScientificDecisionPanel from "./ScientificDecisionPanel";
+import ScientificClaimReviewPanel from "./ScientificClaimReviewPanel";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8100";
 
@@ -91,6 +92,8 @@ export default function InvestigationAgentActions({ investigationId }: { investi
       </div>
       <Link className="tinyLink" href={`/investigations/${investigationId}?lens=evidence`}>View scientific evidence →</Link>
     </section>}
+
+    <ScientificClaimReviewPanel investigationId={investigationId}/>
 
     <div className="agentActions">
       <button disabled={!!busy} onClick={() => run(`/api/v1/investigations/${investigationId}/agents/evidence/run`, "Evidence Agent")}>Run Evidence Agent</button>
