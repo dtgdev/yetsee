@@ -4,6 +4,7 @@ import InvestigationAgentActions from "../../../components/InvestigationAgentAct
 import InvestigationMissionActions from "../../../components/InvestigationMissionActions";
 import { RunGraphReasoner } from "../../../components/ReasoningActions";
 import GalileoGraph from "../../../components/GalileoGraph";
+import LiteratureSynthesis, { type LiteratureSynthesisItem } from "../../../components/LiteratureSynthesis";
 import { StudioFrame } from "../../../components/StudioChrome";
 import { Metric, ResearchMetrics, ResearchPage, ResearchPanel, StatusPill } from "../../../components/ResearchWorkspace";
 
@@ -104,7 +105,7 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
   const query=await searchParams;
   const active=(lenses.some(l=>l.id===query.lens)?query.lens:"overview") as Lens;
   const emptyAccounting:EvidenceAccounting={canonical_evidence_count:0,observation_evidence_count:0,literature_evidence_count:0,independent_source_count:0,independent_publication_count:0,supporting_count:0,contradicting_count:0,contextual_count:0,literature_supporting_count:0,literature_contradicting_count:0,literature_contextual_count:0,literature_items:[],policy:{canonical_sources:["observation","scientific_passage"],derived_claims_are_evidence:false,memory_is_evidence:false}};
-  const [w,allCommands,reasoningResults,reasoningRuns,reasoners,entities,relationships,investigationGraph,evidenceAccounting,agentManifests]=await Promise.all([
+  const [w,allCommands,reasoningResults,reasoningRuns,reasoners,entities,relationships,investigationGraph,evidenceAccounting,literatureSynthesis,agentManifests]=await Promise.all([
     apiGet<Workspace>(`/api/v1/investigations/${id}/workspace`),
     safe<Command[]>("/api/v1/kernel/commands?limit=150",[]),
     safe<ReasoningResult[]>(`/api/v1/investigations/${id}/reasoning/results`,[]),
@@ -114,6 +115,7 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
     safe<Relationship[]>("/api/v1/graph/relationships?limit=180",[]),
     safe<InvestigationGraph>(`/api/v1/investigations/${id}/graph`,{investigation:{id,title:"",status:""},nodes:[],edges:[],metrics:{nodes:0,edges:0,entities:0,observations:0,hypotheses:0,independent_sources:0,sources:[],connected_components:0,density:0,relationship_types:{}},generated_at:"",derived:true}),
     safe<EvidenceAccounting>(`/api/v1/investigations/${id}/evidence-accounting`,emptyAccounting),
+    safe<LiteratureSynthesisItem[]>(`/api/v1/investigations/${id}/claim-synthesis`,[]),
     safe<AgentManifest[]>("/api/v1/agents",[]),
   ]);
 
@@ -164,7 +166,8 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
   if(active==="evidence"){
     body=<div className="lensWorkspace">
       <ResearchMetrics><Metric label="Evidence" value={canonicalEvidenceCount} note={`${evidenceAccounting.observation_evidence_count} observations · ${evidenceAccounting.literature_evidence_count} literature passages`}/><Metric label="Independent sources" value={canonicalSourceCount} note={`${evidenceAccounting.independent_publication_count} independent publications`} tone="violet"/><Metric label="Supporting" value={canonicalSupporting} note="canonical evidence links" tone="green"/><Metric label="Contradicting" value={canonicalContradicting} note={`${evidenceAccounting.contextual_count} contextual`} tone="red"/></ResearchMetrics>
-      {evidenceAccounting.literature_items.length>0&&<ResearchPanel title="Scientific literature" subtitle="Canonical source passages. Derived claims and interpretations are tracked separately and do not inflate evidence counts."><div className="evidenceSources">{evidenceAccounting.literature_items.map(item=><article key={item.evidence_link_id}><div><span className="sourceStance">{item.stance}</span><strong>{item.publication?.title??"Scientific publication"}</strong><small>{item.publication?.journal??""}{item.publication?.pmid?` · PMID ${item.publication.pmid}`:""}{item.publication?.doi?` · DOI ${item.publication.doi}`:""}</small></div><p>{item.passage.text}</p>{item.publication?.source_url&&<a href={item.publication.source_url} target="_blank" rel="noreferrer">View source ↗</a>}</article>)}</div><small className="mechanicsNote">Evidence policy: scientific passages are canonical; claims and memory remain derived context.</small></ResearchPanel>}
+      <LiteratureSynthesis investigationId={id} items={literatureSynthesis}/>
+      {evidenceAccounting.literature_items.length>0&&<div id="scientific-literature"><ResearchPanel title="Scientific literature" subtitle="Canonical source passages. Derived claims and interpretations are tracked separately and do not inflate evidence counts."><div className="evidenceSources">{evidenceAccounting.literature_items.map(item=><article key={item.evidence_link_id}><div><span className="sourceStance">{item.stance}</span><strong>{item.publication?.title??"Scientific publication"}</strong><small>{item.publication?.journal??""}{item.publication?.pmid?` · PMID ${item.publication.pmid}`:""}{item.publication?.doi?` · DOI ${item.publication.doi}`:""}</small></div><p>{item.passage.text}</p>{item.publication?.source_url&&<a href={item.publication.source_url} target="_blank" rel="noreferrer">View source ↗</a>}</article>)}</div><small className="mechanicsNote">Evidence policy: scientific passages are canonical; claims and memory remain derived context.</small></ResearchPanel></div>}
       <div className="researchTwoCol wideLeft"><ResearchPanel title="Observation evidence" subtitle="Structured observations remain first-class canonical evidence alongside literature passages."><ObservationTable w={w}/></ResearchPanel><ResearchPanel title="Source diversity" subtitle="Independent evidence sources, deduplicated by publication for scientific literature." className="stickyPanel"><div className="sourceDiversityV2">{sourceLabels.map((s,i)=><div key={s}><span><i className={`srcTone s${i%5}`}/>{s}</span><b><i style={{width:"100%"}}/></b><em>1</em></div>)}</div><div className="lensInsight"><span>Scientific question</span><strong>What supports or contradicts this investigation?</strong><p>Evidence remains immutable. Classification, claims and interpretation are recorded separately.</p></div></ResearchPanel></div>
       <ResearchPanel title="Evidence challenges" subtitle="Agent findings that expose repetition, missing sources and counter-evidence gaps."><div className="findingListV2">{latestFindings.map(f=><div key={f.id}><span className={`findingDot ${f.severity}`}>!</span><div><strong>{f.title}</strong><p>{f.detail}</p><small>{f.agent_id} · {f.category}</small></div><div><b>{Math.round(f.confidence*100)}%</b><span>{f.evidence_ids.length} evidence</span></div></div>)}</div></ResearchPanel>
     </div>;
