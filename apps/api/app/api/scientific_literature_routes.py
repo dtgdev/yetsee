@@ -15,6 +15,7 @@ from app.scientific_literature.evidence import bind_passage_to_investigation, li
 from app.scientific_literature.evidence_profile import investigation_evidence_profiles, relationship_evidence_profile
 from app.scientific_literature.grounding import ground_claim_relationship
 from app.scientific_literature.pubmed import ingest_pubmed_article
+from app.scientific_literature.study_quality import investigation_study_quality
 from app.scientific_literature.synthesis import synthesize_investigation_claims
 
 router = APIRouter()
@@ -79,6 +80,11 @@ def review_investigation_claim_candidate(investigation_id:str,candidate_id:str,r
 def investigation_claim_synthesis(investigation_id:str,db:DB)->list[dict]:
     if db.get(Investigation,investigation_id) is None:raise HTTPException(status_code=404,detail="Investigation not found")
     return synthesize_investigation_claims(db,investigation_id)
+
+@router.get("/investigations/{investigation_id}/study-quality")
+def investigation_literature_study_quality(investigation_id:str,db:DB)->dict:
+    try:return investigation_study_quality(db,investigation_id)
+    except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
 
 @router.get("/investigations/{investigation_id}/evidence-accounting")
 def investigation_canonical_evidence_accounting(investigation_id:str,db:DB)->dict:
