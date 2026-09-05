@@ -7,6 +7,7 @@ import "./scientific-memory.css";
 import "./mission-scientific-outcome.css";
 import "./scientific-evidence.css";
 import "./literature-synthesis.css";
+import "./study-quality.css";
 import "./workspace-recovery.css";
 
 export const metadata = {
