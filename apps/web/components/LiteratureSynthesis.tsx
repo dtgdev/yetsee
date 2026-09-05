@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { apiGet } from "../lib/api";
+import StudyQualityPanel, { type StudyQualitySummary } from "./StudyQualityPanel";
 
 export type LiteratureSynthesisItem = {
   relationship:{
@@ -52,36 +54,43 @@ function tone(value:string){
   return "neutral";
 }
 
-export default function LiteratureSynthesis({investigationId,items}:{investigationId:string;items:LiteratureSynthesisItem[]}){
-  if(items.length===0) return null;
-  return <section className="literatureSynthesis" aria-labelledby="literature-synthesis-title">
-    <div className="literatureSynthesisHeader">
-      <div><span className="literatureSynthesisEyebrow">Derived scientific synthesis</span><h2 id="literature-synthesis-title">What the literature collectively shows</h2><p>Related claims are grouped across independent publications while each source and review decision remains traceable.</p></div>
-      <span className="literatureSynthesisPolicy">Does not increase canonical evidence count</span>
-    </div>
-    <div className="literatureSynthesisList">
-      {items.map((item,index)=><article className="literatureSynthesisCard" key={`${item.relationship.subject.key}:${item.relationship.predicate}:${item.relationship.object.key}`}>
-        <div className="literatureSynthesisClaim">
-          <div><span>Subject</span><strong>{item.relationship.subject.name}</strong></div>
-          <b aria-label={humanize(item.relationship.predicate)}>→</b>
-          <div><span>{humanize(item.relationship.predicate)}</span><strong>{item.relationship.object.name}</strong></div>
-        </div>
-        <div className="literatureSynthesisStats">
-          <div><strong>{item.independent_publication_count}</strong><span>independent {item.independent_publication_count===1?"publication":"publications"}</span></div>
-          <div><strong>{item.approved_count}</strong><span>approved</span></div>
-          <div><strong>{item.rejected_count}</strong><span>rejected</span></div>
-          <div><strong>{item.pending_count}</strong><span>pending</span></div>
-          <span className={`literatureStrength ${tone(item.strength)}`}>{strengthLabel(item.strength)}</span>
-        </div>
-        <div className="literatureSynthesisSources">
-          {item.sources.map(source=><div className="literatureSynthesisSource" key={source.candidate_id}>
-            <div><span className={`reviewState ${source.review_status}`}>{humanize(source.review_status)}</span><strong>{source.pmid?`PubMed ${source.pmid}`:"Scientific publication"}</strong><small>{source.doi?`DOI ${source.doi}`:source.locator??"Source passage"}</small></div>
-            <p>{source.assertion_text}</p>
-            {source.source_url&&<a href={source.source_url} target="_blank" rel="noreferrer">Open publication ↗</a>}
-          </div>)}
-        </div>
-        <footer><span>{item.review_complete?"Review complete":"Human review still required"}</span><Link href={`/investigations/${investigationId}?lens=evidence#scientific-literature`}>Inspect canonical evidence</Link></footer>
-      </article>)}
-    </div>
-  </section>;
+async function loadStudyQuality(investigationId:string):Promise<StudyQualitySummary|null>{
+  try{return await apiGet<StudyQualitySummary>(`/api/v1/investigations/${investigationId}/study-quality`)}catch{return null}
+}
+
+export default async function LiteratureSynthesis({investigationId,items}:{investigationId:string;items:LiteratureSynthesisItem[]}){
+  const quality=await loadStudyQuality(investigationId);
+  return <>
+    {items.length>0&&<section className="literatureSynthesis" aria-labelledby="literature-synthesis-title">
+      <div className="literatureSynthesisHeader">
+        <div><span className="literatureSynthesisEyebrow">Derived scientific synthesis</span><h2 id="literature-synthesis-title">What the literature collectively shows</h2><p>Related claims are grouped across independent publications while each source and review decision remains traceable.</p></div>
+        <span className="literatureSynthesisPolicy">Does not increase canonical evidence count</span>
+      </div>
+      <div className="literatureSynthesisList">
+        {items.map(item=><article className="literatureSynthesisCard" key={`${item.relationship.subject.key}:${item.relationship.predicate}:${item.relationship.object.key}`}>
+          <div className="literatureSynthesisClaim">
+            <div><span>Subject</span><strong>{item.relationship.subject.name}</strong></div>
+            <b aria-label={humanize(item.relationship.predicate)}>→</b>
+            <div><span>{humanize(item.relationship.predicate)}</span><strong>{item.relationship.object.name}</strong></div>
+          </div>
+          <div className="literatureSynthesisStats">
+            <div><strong>{item.independent_publication_count}</strong><span>independent {item.independent_publication_count===1?"publication":"publications"}</span></div>
+            <div><strong>{item.approved_count}</strong><span>approved</span></div>
+            <div><strong>{item.rejected_count}</strong><span>rejected</span></div>
+            <div><strong>{item.pending_count}</strong><span>pending</span></div>
+            <span className={`literatureStrength ${tone(item.strength)}`}>{strengthLabel(item.strength)}</span>
+          </div>
+          <div className="literatureSynthesisSources">
+            {item.sources.map(source=><div className="literatureSynthesisSource" key={source.candidate_id}>
+              <div><span className={`reviewState ${source.review_status}`}>{humanize(source.review_status)}</span><strong>{source.pmid?`PubMed ${source.pmid}`:"Scientific publication"}</strong><small>{source.doi?`DOI ${source.doi}`:source.locator??"Source passage"}</small></div>
+              <p>{source.assertion_text}</p>
+              {source.source_url&&<a href={source.source_url} target="_blank" rel="noreferrer">Open publication ↗</a>}
+            </div>)}
+          </div>
+          <footer><span>{item.review_complete?"Review complete":"Human review still required"}</span><Link href={`/investigations/${investigationId}?lens=evidence#scientific-literature`}>Inspect canonical evidence</Link></footer>
+        </article>)}
+      </div>
+    </section>}
+    {quality&&<StudyQualityPanel summary={quality}/>} 
+  </>;
 }
