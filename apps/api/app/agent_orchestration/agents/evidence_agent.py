@@ -13,15 +13,28 @@ SUGGESTED_SOURCES = {
     "technology": ["github", "hacker_news", "arxiv", "patents"],
     "market": ["news", "sec", "jobs", "google_trends"],
     "product_category": ["commerce", "google_trends", "reddit", "youtube"],
+    "science": ["pubmed", "clinical_trials", "systematic_reviews", "regulatory_biomedical"],
+    "scientific": ["pubmed", "clinical_trials", "systematic_reviews", "regulatory_biomedical"],
+    "biomedical": ["pubmed", "clinical_trials", "systematic_reviews", "regulatory_biomedical"],
+    "clinical": ["pubmed", "clinical_trials", "systematic_reviews", "regulatory_biomedical"],
 }
 DEFAULT_SOURCES = ["google_trends", "reddit", "news", "youtube", "jobs"]
+SCIENTIFIC_SOURCES = ["pubmed", "clinical_trials", "systematic_reviews", "regulatory_biomedical"]
+
+
+def _suggested_source_families(*, semantic_kind: str | None, independent_publication_count: int) -> list[str]:
+    if semantic_kind in SUGGESTED_SOURCES:
+        return SUGGESTED_SOURCES[semantic_kind]
+    if independent_publication_count > 0:
+        return SCIENTIFIC_SOURCES
+    return DEFAULT_SOURCES
 
 
 class EvidenceAgent:
     def manifest(self):
         return AgentManifest(
             "evidence_agent",
-            "1.1",
+            "1.2",
             "Evidence Agent",
             "Audits investigation evidence coverage, source independence, repetition, and contradiction gaps without rewriting observations.",
             ("audit_evidence", "detect_source_gaps", "suggest_sources", "audit_contradictions"),
@@ -86,7 +99,11 @@ class EvidenceAgent:
             ))
 
         semantic_kind = (investigation.attributes or {}).get("semantic_kind")
-        suggestions = [source for source in SUGGESTED_SOURCES.get(semantic_kind, DEFAULT_SOURCES) if source not in observation_sources]
+        recommended_families = _suggested_source_families(
+            semantic_kind=semantic_kind,
+            independent_publication_count=independent_publication_count,
+        )
+        suggestions = [source for source in recommended_families if source not in observation_sources]
         if suggestions:
             findings.append(FindingDraft(
                 category="missing_sources",
@@ -100,6 +117,7 @@ class EvidenceAgent:
                     "current_observation_sources": observation_sources,
                     "current_independent_sources": independent_source_count,
                     "current_independent_publications": independent_publication_count,
+                    "recommendation_profile": "scientific" if recommended_families == SCIENTIFIC_SOURCES else (semantic_kind or "default"),
                 },
             ))
 
