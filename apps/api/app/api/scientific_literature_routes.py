@@ -15,6 +15,7 @@ from app.scientific_literature.evidence import bind_passage_to_investigation, li
 from app.scientific_literature.evidence_profile import investigation_evidence_profiles, relationship_evidence_profile
 from app.scientific_literature.grounding import ground_claim_relationship
 from app.scientific_literature.pubmed import ingest_pubmed_article
+from app.scientific_literature.study_independence import investigation_study_independence
 from app.scientific_literature.study_quality import investigation_study_quality
 from app.scientific_literature.synthesis import synthesize_investigation_claims
 
@@ -84,6 +85,11 @@ def investigation_claim_synthesis(investigation_id:str,db:DB)->list[dict]:
 @router.get("/investigations/{investigation_id}/study-quality")
 def investigation_literature_study_quality(investigation_id:str,db:DB)->dict:
     try:return investigation_study_quality(db,investigation_id)
+    except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+
+@router.get("/investigations/{investigation_id}/study-independence")
+def investigation_literature_study_independence(investigation_id:str,db:DB)->dict:
+    try:return investigation_study_independence(db,investigation_id)
     except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
 
 @router.get("/investigations/{investigation_id}/evidence-accounting")
