@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { apiGet } from "../lib/api";
-import StudyQualityPanel, { type StudyQualitySummary } from "./StudyQualityPanel";
+import StudyQualityLoader from "./StudyQualityLoader";
 
 export type LiteratureSynthesisItem = {
   relationship:{
@@ -54,12 +53,7 @@ function tone(value:string){
   return "neutral";
 }
 
-async function loadStudyQuality(investigationId:string):Promise<StudyQualitySummary|null>{
-  try{return await apiGet<StudyQualitySummary>(`/api/v1/investigations/${investigationId}/study-quality`)}catch{return null}
-}
-
-export default async function LiteratureSynthesis({investigationId,items}:{investigationId:string;items:LiteratureSynthesisItem[]}){
-  const quality=await loadStudyQuality(investigationId);
+export default function LiteratureSynthesis({investigationId,items}:{investigationId:string;items:LiteratureSynthesisItem[]}){
   return <>
     {items.length>0&&<section className="literatureSynthesis" aria-labelledby="literature-synthesis-title">
       <div className="literatureSynthesisHeader">
@@ -91,6 +85,6 @@ export default async function LiteratureSynthesis({investigationId,items}:{inves
         </article>)}
       </div>
     </section>}
-    {quality&&<StudyQualityPanel summary={quality}/>} 
+    <StudyQualityLoader investigationId={investigationId}/>
   </>;
 }
