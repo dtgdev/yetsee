@@ -84,16 +84,28 @@ def investigation_study_independence(db: Session, investigation_id: str) -> dict
     if db.get(Investigation, investigation_id) is None:
         raise KeyError("Investigation not found")
 
-    rows = db.execute(
-        select(ScientificPublication)
-        .join(ScientificPassage, ScientificPassage.publication_id == ScientificPublication.id)
-        .join(EvidenceLink, EvidenceLink.scientific_passage_id == ScientificPassage.id)
-        .where(EvidenceLink.investigation_id == investigation_id)
-        .distinct()
-        .order_by(ScientificPublication.publication_date.asc(), ScientificPublication.id.asc())
-    ).scalars().all()
+    # Do not SELECT DISTINCT over the ScientificPublication model in PostgreSQL:
+    # it contains JSON columns, which do not have a native equality operator.
+    # Resolve distinct publication IDs first, then load publication rows normally.
+    publication_ids = list(
+        db.scalars(
+            select(ScientificPassage.publication_id)
+            .join(EvidenceLink, EvidenceLink.scientific_passage_id == ScientificPassage.id)
+            .where(EvidenceLink.investigation_id == investigation_id)
+            .distinct()
+        )
+    )
+    if publication_ids:
+        publications = list(
+            db.scalars(
+                select(ScientificPublication)
+                .where(ScientificPublication.id.in_(publication_ids))
+                .order_by(ScientificPublication.publication_date.asc(), ScientificPublication.id.asc())
+            )
+        )
+    else:
+        publications = []
 
-    publications = list(rows)
     pairwise = [assess_pair(left, right) for left, right in combinations(publications, 2)]
 
     same_trial_pairs = [item for item in pairwise if item["status"] == "same_trial"]
