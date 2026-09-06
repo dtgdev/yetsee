@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.agent_orchestration.contracts import AgentManifest, AgentResult, FindingDraft
 from app.agent_orchestration.agents.common import investigation_bundle
+from app.investigation_runtime.evidence_accounting import investigation_evidence_accounting
 from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink
 
 
@@ -20,7 +21,7 @@ class EvidenceAgent:
     def manifest(self):
         return AgentManifest(
             "evidence_agent",
-            "1.0",
+            "1.1",
             "Evidence Agent",
             "Audits investigation evidence coverage, source independence, repetition, and contradiction gaps without rewriting observations.",
             ("audit_evidence", "detect_source_gaps", "suggest_sources", "audit_contradictions"),
@@ -30,7 +31,16 @@ class EvidenceAgent:
     def execute(self, db, context):
         investigation, links, observations = investigation_bundle(db, context.target_id)
         findings = []
-        sources = sorted({item.source for item in observations})
+        observation_sources = sorted({item.source for item in observations})
+        accounting = investigation_evidence_accounting(db, investigation.id)
+        independent_source_count = accounting["independent_source_count"]
+        independent_publication_count = accounting["independent_publication_count"]
+        literature_sources = sorted({
+            f"PubMed {item['publication']['pmid']}" if item.get("publication") and item["publication"].get("pmid") else f"Publication {item['publication']['id']}"
+            for item in accounting["literature_items"]
+            if item.get("publication")
+        })
+        source_labels = observation_sources + literature_sources
 
         # Repeated ingestion runs are useful history but do not equal independent evidence.
         fingerprints = [
@@ -40,16 +50,22 @@ class EvidenceAgent:
         unique_fingerprints = set(fingerprints)
         repeated_count = max(0, len(observations) - len(unique_fingerprints))
 
-        if len(sources) < 2:
+        if independent_source_count < 2:
             findings.append(FindingDraft(
                 category="source_diversity",
                 title="Independent source coverage is too low",
-                detail=f"This investigation currently uses {len(sources)} independent source(s): {', '.join(sources) or 'none'}. Add at least one unrelated source before treating the thesis as validated.",
+                detail=f"This investigation currently uses {independent_source_count} independent canonical source(s): {', '.join(source_labels) or 'none'}. Add at least one unrelated source before treating the thesis as validated.",
                 severity="critical",
                 stance="warning",
                 confidence=0.99,
                 evidence_ids=[item.id for item in observations],
-                metadata={"source_count": len(sources), "sources": sources},
+                metadata={
+                    "source_count": independent_source_count,
+                    "observation_sources": observation_sources,
+                    "independent_publications": independent_publication_count,
+                    "literature_sources": literature_sources,
+                    "accounting_policy": accounting["policy"],
+                },
             ))
 
         if repeated_count:
@@ -70,7 +86,7 @@ class EvidenceAgent:
             ))
 
         semantic_kind = (investigation.attributes or {}).get("semantic_kind")
-        suggestions = [source for source in SUGGESTED_SOURCES.get(semantic_kind, DEFAULT_SOURCES) if source not in sources]
+        suggestions = [source for source in SUGGESTED_SOURCES.get(semantic_kind, DEFAULT_SOURCES) if source not in observation_sources]
         if suggestions:
             findings.append(FindingDraft(
                 category="missing_sources",
@@ -79,7 +95,12 @@ class EvidenceAgent:
                 severity="info",
                 stance="neutral",
                 confidence=0.9,
-                metadata={"suggested_sources": suggestions[:4], "current_sources": sources},
+                metadata={
+                    "suggested_sources": suggestions[:4],
+                    "current_observation_sources": observation_sources,
+                    "current_independent_sources": independent_source_count,
+                    "current_independent_publications": independent_publication_count,
+                },
             ))
 
         hypotheses = list(db.scalars(select(Hypothesis).where(Hypothesis.investigation_id == investigation.id)))
@@ -100,18 +121,22 @@ class EvidenceAgent:
                 ))
 
         return AgentResult(
-            summary=f"Audited {investigation.title}: {len(observations)} observation(s), {len(sources)} source(s), {len(findings)} finding(s).",
-            recommendation="collect_independent_evidence" if len(sources) < 2 else "continue_review",
+            summary=f"Audited {investigation.title}: {accounting['canonical_evidence_count']} canonical evidence item(s), {independent_source_count} independent source(s), {len(findings)} finding(s).",
+            recommendation="collect_independent_evidence" if independent_source_count < 2 else "continue_review",
             confidence=0.96,
             findings=findings,
             output={
                 "observations": len(observations),
-                "independent_sources": len(sources),
-                "sources": sources,
+                "canonical_evidence": accounting["canonical_evidence_count"],
+                "independent_sources": independent_source_count,
+                "independent_publications": independent_publication_count,
+                "observation_sources": observation_sources,
+                "literature_sources": literature_sources,
                 "effective_evidence_patterns": len(unique_fingerprints),
                 "repeated_observations": repeated_count,
                 "suggested_sources": suggestions[:4],
                 "hypotheses": len(hypotheses),
+                "evidence_accounting_policy": accounting["policy"],
             },
             permissions_used=["read:investigation", "read:evidence", "read:hypotheses", "write:findings"],
         )
