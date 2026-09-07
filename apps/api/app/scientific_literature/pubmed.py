@@ -157,9 +157,10 @@ def _metadata(article: PubMedArticle) -> dict:
         "abstract_section_count":len(article.abstract_sections),
         "publication_types":article.publication_types,
         "mesh_terms":article.mesh_terms,
+        "clinical_trial_ids":article.trial_identifiers,
         "trial_identifiers":article.trial_identifiers,
         "languages":article.languages,
-        "metadata_schema":"pubmed-study-metadata-v1",
+        "metadata_schema":"pubmed-study-metadata-v2",
     }
 
 
