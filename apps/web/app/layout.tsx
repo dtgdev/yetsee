@@ -8,6 +8,7 @@ import "./mission-scientific-outcome.css";
 import "./scientific-evidence.css";
 import "./literature-synthesis.css";
 import "./study-quality.css";
+import "./study-independence.css";
 import "./workspace-recovery.css";
 
 export const metadata = {
