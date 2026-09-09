@@ -1,90 +1,20 @@
 import Link from "next/link";
 import StudyQualityLoader from "./StudyQualityLoader";
+import StudyIndependenceLoader from "./StudyIndependenceLoader";
 
 export type LiteratureSynthesisItem = {
-  relationship:{
-    subject:{kind:string;name:string;key:string};
-    predicate:string;
-    object:{kind:string;name:string;key:string};
-  };
-  candidate_count:number;
-  independent_publication_count:number;
-  approved_count:number;
-  rejected_count:number;
-  pending_count:number;
-  review_complete:boolean;
-  strength:string;
-  pmids:string[];
-  dois:string[];
-  sources:{
-    candidate_id:string;
-    review_status:string;
-    scientific_claim_id:string|null;
-    relationship_id:string|null;
-    assertion_text:string;
-    extraction_confidence:number;
-    passage_id:string;
-    publication_id:string;
-    pmid:string|null;
-    doi:string|null;
-    source_url:string|null;
-    locator:string|null;
-  }[];
+  relationship:{subject:{kind:string;name:string;key:string};predicate:string;object:{kind:string;name:string;key:string};};
+  candidate_count:number;independent_publication_count:number;approved_count:number;rejected_count:number;pending_count:number;review_complete:boolean;strength:string;pmids:string[];dois:string[];
+  sources:{candidate_id:string;review_status:string;scientific_claim_id:string|null;relationship_id:string|null;assertion_text:string;extraction_confidence:number;passage_id:string;publication_id:string;pmid:string|null;doi:string|null;source_url:string|null;locator:string|null;}[];
   policy:{derived_synthesis:boolean;canonical_evidence:boolean;does_not_change_evidence_count:boolean};
 };
-
 const humanize=(value:string)=>value.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
-
-function strengthLabel(value:string){
-  const labels:Record<string,string>={
-    reviewed_multi_study:"Reviewed multi-study",
-    multi_study_candidate:"Multi-study candidate",
-    reviewed_single_study:"Reviewed single-study",
-    review_disagreement:"Review disagreement",
-    rejected:"Rejected",
-    single_study_candidate:"Single-study candidate",
-  };
-  return labels[value]??humanize(value);
-}
-
-function tone(value:string){
-  if(value==="reviewed_multi_study") return "positive";
-  if(value==="review_disagreement"||value==="rejected") return "warning";
-  return "neutral";
-}
-
+function strengthLabel(value:string){const labels:Record<string,string>={reviewed_multi_study:"Reviewed multi-study",multi_study_candidate:"Multi-study candidate",reviewed_single_study:"Reviewed single-study",review_disagreement:"Review disagreement",rejected:"Rejected",single_study_candidate:"Single-study candidate"};return labels[value]??humanize(value)}
+function tone(value:string){if(value==="reviewed_multi_study")return "positive";if(value==="review_disagreement"||value==="rejected")return "warning";return "neutral"}
 export default function LiteratureSynthesis({investigationId,items}:{investigationId:string;items:LiteratureSynthesisItem[]}){
   return <>
-    {items.length>0&&<section className="literatureSynthesis" aria-labelledby="literature-synthesis-title">
-      <div className="literatureSynthesisHeader">
-        <div><span className="literatureSynthesisEyebrow">Derived scientific synthesis</span><h2 id="literature-synthesis-title">What the literature collectively shows</h2><p>Related claims are grouped across independent publications while each source and review decision remains traceable.</p></div>
-        <span className="literatureSynthesisPolicy">Does not increase canonical evidence count</span>
-      </div>
-      <div className="literatureSynthesisList">
-        {items.map(item=><article className="literatureSynthesisCard" key={`${item.relationship.subject.key}:${item.relationship.predicate}:${item.relationship.object.key}`}>
-          <div className="literatureSynthesisClaim">
-            <div><span>Subject</span><strong>{item.relationship.subject.name}</strong></div>
-            <b aria-label={humanize(item.relationship.predicate)}>→</b>
-            <div><span>{humanize(item.relationship.predicate)}</span><strong>{item.relationship.object.name}</strong></div>
-          </div>
-          <div className="literatureSynthesisStats">
-            <div><strong>{item.independent_publication_count}</strong><span>independent {item.independent_publication_count===1?"publication":"publications"}</span></div>
-            <div><strong>{item.approved_count}</strong><span>approved</span></div>
-            <div><strong>{item.rejected_count}</strong><span>rejected</span></div>
-            <div><strong>{item.pending_count}</strong><span>pending</span></div>
-            <span className={`literatureStrength ${tone(item.strength)}`}>{strengthLabel(item.strength)}</span>
-          </div>
-          <div className="literatureSynthesisSources">
-            {item.sources.map(source=><div className="literatureSynthesisSource" key={source.candidate_id}>
-              <div><span className={`reviewState ${source.review_status}`}>{humanize(source.review_status)}</span><strong>{source.pmid?`PubMed ${source.pmid}`:"Scientific publication"}</strong><small>{source.doi?`DOI ${source.doi}`:source.locator??"Source passage"}</small></div>
-              <p>{source.assertion_text}</p>
-              {source.source_url&&<a href={source.source_url} target="_blank" rel="noreferrer">Open publication ↗</a>}
-            </div>)}
-          </div>
-          <footer><span>{item.review_complete?"Review complete":"Human review still required"}</span><Link href={`/investigations/${investigationId}?lens=evidence#scientific-literature`}>Inspect canonical evidence</Link></footer>
-        </article>)}
-      </div>
-    </section>}
+    {items.length>0&&<section className="literatureSynthesis" aria-labelledby="literature-synthesis-title"><div className="literatureSynthesisHeader"><div><span className="literatureSynthesisEyebrow">Derived scientific synthesis</span><h2 id="literature-synthesis-title">What the literature collectively shows</h2><p>Related claims are grouped across independent publications while each source and review decision remains traceable.</p></div><span className="literatureSynthesisPolicy">Does not increase canonical evidence count</span></div><div className="literatureSynthesisList">{items.map(item=><article className="literatureSynthesisCard" key={`${item.relationship.subject.key}:${item.relationship.predicate}:${item.relationship.object.key}`}><div className="literatureSynthesisClaim"><div><span>Subject</span><strong>{item.relationship.subject.name}</strong></div><b aria-label={humanize(item.relationship.predicate)}>→</b><div><span>{humanize(item.relationship.predicate)}</span><strong>{item.relationship.object.name}</strong></div></div><div className="literatureSynthesisStats"><div><strong>{item.independent_publication_count}</strong><span>independent {item.independent_publication_count===1?"publication":"publications"}</span></div><div><strong>{item.approved_count}</strong><span>approved</span></div><div><strong>{item.rejected_count}</strong><span>rejected</span></div><div><strong>{item.pending_count}</strong><span>pending</span></div><span className={`literatureStrength ${tone(item.strength)}`}>{strengthLabel(item.strength)}</span></div><div className="literatureSynthesisSources">{item.sources.map(source=><div className="literatureSynthesisSource" key={source.candidate_id}><div><span className={`reviewState ${source.review_status}`}>{humanize(source.review_status)}</span><strong>{source.pmid?`PubMed ${source.pmid}`:"Scientific publication"}</strong><small>{source.doi?`DOI ${source.doi}`:source.locator??"Source passage"}</small></div><p>{source.assertion_text}</p>{source.source_url&&<a href={source.source_url} target="_blank" rel="noreferrer">Open publication ↗</a>}</div>)}</div><footer><span>{item.review_complete?"Review complete":"Human review still required"}</span><Link href={`/investigations/${investigationId}?lens=evidence#scientific-literature`}>Inspect canonical evidence</Link></footer></article>)}</div></section>}
     <StudyQualityLoader investigationId={investigationId}/>
+    <StudyIndependenceLoader investigationId={investigationId}/>
   </>;
 }
