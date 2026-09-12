@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.api.deps import DB
 from app.investigation_runtime.evidence_accounting import investigation_evidence_accounting
+from app.models.agent import AgentFinding, AgentTask
 from app.models.investigation import Investigation
 from app.scientific_literature.candidate_extraction import extract_investigation_claim_candidates
 from app.scientific_literature.candidate_review import list_candidate_reviews, review_candidate
@@ -91,6 +92,18 @@ def investigation_literature_study_quality(investigation_id:str,db:DB)->dict:
 def investigation_literature_study_independence(investigation_id:str,db:DB)->dict:
     try:return investigation_study_independence(db,investigation_id)
     except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+
+@router.get("/investigations/{investigation_id}/current-agent-findings")
+def investigation_current_agent_findings(investigation_id:str,db:DB)->dict:
+    if db.get(Investigation,investigation_id) is None:raise HTTPException(status_code=404,detail="Investigation not found")
+    tasks=list(db.scalars(select(AgentTask).where(AgentTask.target_id==investigation_id,AgentTask.status=="completed").order_by(AgentTask.created_at.desc())))
+    latest_by_agent:dict[str,AgentTask]={}
+    for task in tasks:
+        if task.agent_id not in latest_by_agent:latest_by_agent[task.agent_id]=task
+    current_task_ids=[task.id for task in latest_by_agent.values()]
+    current_findings=list(db.scalars(select(AgentFinding).where(AgentFinding.target_id==investigation_id,AgentFinding.task_id.in_(current_task_ids)).order_by(AgentFinding.created_at.desc()))) if current_task_ids else []
+    history_count=len(list(db.scalars(select(AgentFinding.id).where(AgentFinding.target_id==investigation_id))))
+    return {"investigation_id":investigation_id,"current_findings":current_findings,"current_task_ids":current_task_ids,"history_count":history_count,"policy":{"current_view_uses_latest_completed_task_per_agent":True,"historical_findings_preserved":True}}
 
 @router.get("/investigations/{investigation_id}/evidence-accounting")
 def investigation_canonical_evidence_accounting(investigation_id:str,db:DB)->dict:
