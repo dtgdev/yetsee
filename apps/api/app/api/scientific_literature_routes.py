@@ -4,7 +4,7 @@ from urllib.error import HTTPError, URLError
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import DB
 from app.investigation_runtime.evidence_accounting import investigation_evidence_accounting
@@ -95,15 +95,66 @@ def investigation_literature_study_independence(investigation_id:str,db:DB)->dic
 
 @router.get("/investigations/{investigation_id}/current-agent-findings")
 def investigation_current_agent_findings(investigation_id:str,db:DB)->dict:
-    if db.get(Investigation,investigation_id) is None:raise HTTPException(status_code=404,detail="Investigation not found")
-    tasks=list(db.scalars(select(AgentTask).where(AgentTask.target_id==investigation_id,AgentTask.status=="completed").order_by(AgentTask.created_at.desc())))
+    if db.get(Investigation,investigation_id) is None:
+        raise HTTPException(status_code=404,detail="Investigation not found")
+
+    tasks=list(db.scalars(
+        select(AgentTask)
+        .where(AgentTask.target_id==investigation_id,AgentTask.status=="completed")
+        .order_by(AgentTask.created_at.desc())
+    ))
     latest_by_agent:dict[str,AgentTask]={}
     for task in tasks:
-        if task.agent_id not in latest_by_agent:latest_by_agent[task.agent_id]=task
+        if task.agent_id not in latest_by_agent:
+            latest_by_agent[task.agent_id]=task
+
     current_task_ids=[task.id for task in latest_by_agent.values()]
-    current_findings=list(db.scalars(select(AgentFinding).where(AgentFinding.target_id==investigation_id,AgentFinding.task_id.in_(current_task_ids)).order_by(AgentFinding.created_at.desc()))) if current_task_ids else []
-    history_count=len(list(db.scalars(select(AgentFinding.id).where(AgentFinding.target_id==investigation_id))))
-    return {"investigation_id":investigation_id,"current_findings":current_findings,"current_task_ids":current_task_ids,"history_count":history_count,"policy":{"current_view_uses_latest_completed_task_per_agent":True,"historical_findings_preserved":True}}
+    current_findings=list(db.scalars(
+        select(AgentFinding)
+        .where(
+            AgentFinding.target_id==investigation_id,
+            AgentFinding.task_id.in_(current_task_ids),
+        )
+        .order_by(AgentFinding.created_at.desc())
+    )) if current_task_ids else []
+
+    history_count=db.scalar(
+        select(func.count())
+        .select_from(AgentFinding)
+        .where(AgentFinding.target_id==investigation_id)
+    ) or 0
+
+    serialized_findings=[
+        {
+            "id":finding.id,
+            "task_id":finding.task_id,
+            "agent_id":finding.agent_id,
+            "target_type":finding.target_type,
+            "target_id":finding.target_id,
+            "category":finding.category,
+            "severity":finding.severity,
+            "stance":finding.stance,
+            "confidence":finding.confidence,
+            "title":finding.title,
+            "detail":finding.detail,
+            "evidence_ids":finding.evidence_ids,
+            "metadata_json":finding.metadata_json,
+            "created_at":finding.created_at.isoformat() if finding.created_at else None,
+            "updated_at":finding.updated_at.isoformat() if finding.updated_at else None,
+        }
+        for finding in current_findings
+    ]
+
+    return {
+        "investigation_id":investigation_id,
+        "current_findings":serialized_findings,
+        "current_task_ids":current_task_ids,
+        "history_count":int(history_count),
+        "policy":{
+            "current_view_uses_latest_completed_task_per_agent":True,
+            "historical_findings_preserved":True,
+        },
+    }
 
 @router.get("/investigations/{investigation_id}/evidence-accounting")
 def investigation_canonical_evidence_accounting(investigation_id:str,db:DB)->dict:
