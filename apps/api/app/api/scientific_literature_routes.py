@@ -12,6 +12,7 @@ from app.models.agent import AgentFinding, AgentTask
 from app.models.investigation import Investigation
 from app.scientific_literature.candidate_extraction import extract_investigation_claim_candidates
 from app.scientific_literature.candidate_review import list_candidate_reviews, review_candidate
+from app.scientific_literature.contradiction_intelligence import investigation_contradiction_intelligence
 from app.scientific_literature.evidence import bind_passage_to_investigation, list_literature_evidence
 from app.scientific_literature.evidence_profile import investigation_evidence_profiles, relationship_evidence_profile
 from app.scientific_literature.grounding import ground_claim_relationship
@@ -97,6 +98,11 @@ def investigation_literature_study_independence(investigation_id:str,db:DB)->dic
 @router.get("/investigations/{investigation_id}/question-evidence-hierarchy")
 def investigation_literature_question_evidence_hierarchy(investigation_id:str,db:DB)->dict:
     try:return investigation_question_evidence_hierarchy(db,investigation_id)
+    except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+
+@router.get("/investigations/{investigation_id}/contradiction-intelligence")
+def investigation_literature_contradiction_intelligence(investigation_id:str,db:DB)->dict:
+    try:return investigation_contradiction_intelligence(db,investigation_id)
     except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
 
 @router.get("/investigations/{investigation_id}/current-agent-findings")
