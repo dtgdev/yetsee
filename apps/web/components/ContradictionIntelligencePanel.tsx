@@ -1,0 +1,89 @@
+export type ContradictionSource={
+  candidate_id:string;
+  publication_id:string;
+  pmid:string|null;
+  assertion_text:string;
+  review_status:string;
+};
+
+export type ContradictionPair={
+  left_candidate_id:string;
+  right_candidate_id:string;
+  left_publication_id:string;
+  right_publication_id:string;
+  left_pmid:string|null;
+  right_pmid:string|null;
+  status:string;
+  confidence:number;
+  rationale:string;
+  left_polarity?:string;
+  right_polarity?:string;
+};
+
+export type ContradictionGroup={
+  relationship:{subject:{name:string;key:string};predicate:string;object:{name:string;key:string}};
+  source_count:number;
+  publication_count:number;
+  overall_status:string;
+  agreement_pair_count:number;
+  direct_contradiction_pair_count:number;
+  pairwise_assessments:ContradictionPair[];
+  sources:ContradictionSource[];
+};
+
+export type ContradictionSummary={
+  investigation_id:string;
+  claim_group_count:number;
+  agreement_group_count:number;
+  direct_contradiction_group_count:number;
+  groups:ContradictionGroup[];
+  policy:{derived_contradiction_assessment:boolean;canonical_evidence:boolean;does_not_change_evidence_count:boolean;algorithm:string};
+};
+
+const humanize=(value:string)=>value.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+
+export default function ContradictionIntelligencePanel({summary}:{summary:ContradictionSummary}){
+  if(!summary.claim_group_count) return null;
+  return <section className="contradictionIntel">
+    <header className="contradictionIntelHeader">
+      <div>
+        <span className="contradictionIntelEyebrow">Derived consistency intelligence</span>
+        <h2>Contradiction Intelligence</h2>
+        <p>Compares normalized scientific claims only when their subject, predicate, and object match. Different relationships are not automatically treated as contradictions.</p>
+      </div>
+      <span className="contradictionIntelPolicy">Explainable · deterministic</span>
+    </header>
+
+    <div className="contradictionIntelSummary">
+      <div><strong>{summary.claim_group_count}</strong><span>claim groups</span></div>
+      <div><strong>{summary.agreement_group_count}</strong><span>agreement groups</span></div>
+      <div><strong>{summary.direct_contradiction_group_count}</strong><span>direct contradictions</span></div>
+    </div>
+
+    <div className="contradictionIntelList">
+      {summary.groups.map((group,index)=><article className="contradictionIntelCard" key={group.relationship.subject.key+":"+group.relationship.predicate+":"+group.relationship.object.key+":"+index}>
+        <div className="contradictionIntelTitle">
+          <div>
+            <span className={"contradictionStatus "+group.overall_status}>{humanize(group.overall_status)}</span>
+            <strong>{group.relationship.subject.name} → {group.relationship.object.name}</strong>
+            <small>{humanize(group.relationship.predicate)} · {group.publication_count} distinct publication{group.publication_count===1?"":"s"}</small>
+          </div>
+          <div className="contradictionIntelCounts">
+            <strong>{group.agreement_pair_count}</strong><span>agree</span>
+            <strong>{group.direct_contradiction_pair_count}</strong><span>contradict</span>
+          </div>
+        </div>
+        {group.pairwise_assessments.length>0&&<div className="contradictionPairs">
+          {group.pairwise_assessments.map((pair,pairIndex)=><div className="contradictionPair" key={pair.left_candidate_id+":"+pair.right_candidate_id+":"+pairIndex}>
+            <div><strong>{humanize(pair.status)}</strong><span>{Math.round(pair.confidence*100)}% assessment confidence</span></div>
+            <p>{pair.rationale}</p>
+            <small>{pair.left_pmid?"PMID "+pair.left_pmid:"Publication A"} ↔ {pair.right_pmid?"PMID "+pair.right_pmid:"Publication B"}</small>
+          </div>)}
+        </div>}
+        {group.pairwise_assessments.length===0&&<p className="contradictionSingle">Only one source currently supports this normalized claim, so cross-publication contradiction cannot yet be assessed.</p>}
+      </article>)}
+    </div>
+
+    <p className="contradictionIntelDisclosure">Derived assessment only · {summary.policy.algorithm}. It does not modify canonical evidence, publication counts, or claim review decisions.</p>
+  </section>;
+}
