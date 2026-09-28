@@ -15,8 +15,29 @@ _NEGATION_RE = re.compile(
 )
 
 
-def claim_polarity(assertion_text: str) -> str:
-    return "negative" if _NEGATION_RE.search(assertion_text or "") else "positive"
+_ALTERATION_WORDS = {"amplification", "mutation", "mutations", "deletion", "deletions", "alteration", "alterations"}
+
+
+def _subject_clause(assertion_text: str, subject_name: str) -> str:
+    text = assertion_text or ""
+    clauses = [part.strip() for part in re.split(r"[;:]", text) if part.strip()]
+    tokens = [
+        token.lower()
+        for token in re.findall(r"[A-Za-z0-9]+", subject_name or "")
+        if token.lower() not in _ALTERATION_WORDS
+    ]
+    if not tokens:
+        return text
+    for clause in clauses:
+        lowered = clause.lower()
+        if all(token in lowered for token in tokens):
+            return clause
+    return text
+
+
+def claim_polarity(assertion_text: str, subject_name: str = "") -> str:
+    relevant_text = _subject_clause(assertion_text, subject_name)
+    return "negative" if _NEGATION_RE.search(relevant_text) else "positive"
 
 
 def classify_claim_pair(left: dict, right: dict) -> dict:
@@ -33,8 +54,9 @@ def classify_claim_pair(left: dict, right: dict) -> dict:
             "rationale": "The normalized subject-predicate-object relationships differ, so YetSee does not treat these claims as direct contradictions.",
         }
 
-    left_polarity = claim_polarity(left.get("assertion_text", ""))
-    right_polarity = claim_polarity(right.get("assertion_text", ""))
+    subject_name = left["relationship"]["subject"].get("name", "")
+    left_polarity = claim_polarity(left.get("assertion_text", ""), subject_name)
+    right_polarity = claim_polarity(right.get("assertion_text", ""), subject_name)
 
     if left_polarity != right_polarity:
         return {
@@ -73,7 +95,10 @@ def investigation_contradiction_intelligence(db: Session, investigation_id: str)
     assessments: list[dict] = []
 
     for item in syntheses:
-        source_claims = [_source_claim(item, source) for source in item["sources"]]
+        active_sources = [source for source in item["sources"] if source["review_status"] != "reject"]
+        source_claims = [_source_claim(item, source) for source in active_sources]
+        if not source_claims:
+            continue
         pairwise: list[dict] = []
         for left, right in combinations(source_claims, 2):
             result = classify_claim_pair(left, right)
@@ -102,7 +127,7 @@ def investigation_contradiction_intelligence(db: Session, investigation_id: str)
         assessments.append({
             "relationship": item["relationship"],
             "source_count": len(source_claims),
-            "publication_count": item["independent_publication_count"],
+            "publication_count": len({source["publication_id"] for source in source_claims}),
             "overall_status": overall_status,
             "agreement_pair_count": agreement_count,
             "direct_contradiction_pair_count": direct_count,
@@ -125,6 +150,8 @@ def investigation_contradiction_intelligence(db: Session, investigation_id: str)
             "does_not_change_evidence_count": True,
             "requires_normalized_relation_match_for_direct_contradiction": True,
             "different_relationships_are_not_assumed_contradictory": True,
-            "algorithm": "deterministic-claim-contradiction-v1",
+            "rejected_claim_candidates_excluded": True,
+            "subject_scoped_polarity": True,
+            "algorithm": "deterministic-claim-contradiction-v1.1",
         },
     }
