@@ -5,14 +5,17 @@ import { apiGet } from "../lib/api";
 import StudyIndependencePanel, { type StudyIndependenceSummary } from "./StudyIndependencePanel";
 import StudyQualityPanel, { type StudyQualitySummary } from "./StudyQualityPanel";
 import QuestionEvidenceHierarchyPanel, { type QuestionEvidenceHierarchySummary } from "./QuestionEvidenceHierarchyPanel";
+import ContradictionIntelligencePanel, { type ContradictionSummary } from "./ContradictionIntelligencePanel";
 
 export default function StudyQualityLoader({investigationId}:{investigationId:string}){
   const [quality,setQuality]=useState<StudyQualitySummary|null>(null);
   const [independence,setIndependence]=useState<StudyIndependenceSummary|null>(null);
   const [hierarchy,setHierarchy]=useState<QuestionEvidenceHierarchySummary|null>(null);
+  const [contradiction,setContradiction]=useState<ContradictionSummary|null>(null);
   const [qualityStatus,setQualityStatus]=useState<"loading"|"ready"|"error">("loading");
   const [independenceStatus,setIndependenceStatus]=useState<"loading"|"ready"|"error">("loading");
   const [hierarchyStatus,setHierarchyStatus]=useState<"loading"|"ready"|"error">("loading");
+  const [contradictionStatus,setContradictionStatus]=useState<"loading"|"ready"|"error">("loading");
 
   useEffect(()=>{
     let active=true;
@@ -25,6 +28,9 @@ export default function StudyQualityLoader({investigationId}:{investigationId:st
     apiGet<QuestionEvidenceHierarchySummary>(`/api/v1/investigations/${investigationId}/question-evidence-hierarchy`)
       .then(result=>{if(active){setHierarchy(result);setHierarchyStatus("ready")}})
       .catch(()=>{if(active)setHierarchyStatus("error")});
+    apiGet<ContradictionSummary>(`/api/v1/investigations/${investigationId}/contradiction-intelligence`)
+      .then(result=>{if(active){setContradiction(result);setContradictionStatus("ready")}})
+      .catch(()=>{if(active)setContradictionStatus("error")});
     return()=>{active=false};
   },[investigationId]);
 
@@ -40,5 +46,8 @@ export default function StudyQualityLoader({investigationId}:{investigationId:st
     {independenceStatus==="loading"&&<section className="studyIndependence studyIndependenceLoading"><span className="studyIndependenceEyebrow">Derived replication intelligence</span><p>Loading study-independence assessment…</p></section>}
     {independenceStatus==="error"&&<section className="studyIndependence studyIndependenceUnavailable"><span className="studyIndependenceEyebrow">Derived replication intelligence</span><h2>Study Independence</h2><p>Study-independence assessment is temporarily unavailable. Canonical evidence remains unchanged.</p></section>}
     {independenceStatus==="ready"&&independence&&<StudyIndependencePanel summary={independence}/>} 
+    {contradictionStatus==="loading"&&<section className="contradictionIntel"><span className="contradictionIntelEyebrow">Derived consistency intelligence</span><p>Loading contradiction assessment…</p></section>}
+    {contradictionStatus==="error"&&<section className="contradictionIntel"><span className="contradictionIntelEyebrow">Derived consistency intelligence</span><h2>Contradiction Intelligence</h2><p>Contradiction assessment is temporarily unavailable. Canonical evidence remains unchanged.</p></section>}
+    {contradictionStatus==="ready"&&contradiction&&<ContradictionIntelligencePanel summary={contradiction}/>} 
   </>;
 }
