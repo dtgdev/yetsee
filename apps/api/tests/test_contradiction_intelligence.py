@@ -34,3 +34,11 @@ def test_different_relationships_are_not_forced_into_contradiction():
     result=classify_claim_pair(claim("MET amplification was observed."),claim("EGFR C797S was observed.",other))
     assert result["status"]=="not_comparable"
     assert result["confidence"]==0.99
+
+
+def test_negation_in_other_clause_does_not_negate_met_claim():
+    text="No EGFR T790M-mediated acquired resistance are observed; most frequent resistance mechanisms are MET amplification (n = 17; 16%) and EGFR C797S mutations (n = 7; 6%)."
+    result=classify_claim_pair(claim(text),claim("MET amplification was reported as a resistance mechanism."))
+    assert result["status"]=="agreement"
+    assert result["left_polarity"]=="positive"
+    assert result["right_polarity"]=="positive"
