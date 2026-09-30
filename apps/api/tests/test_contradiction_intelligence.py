@@ -1,4 +1,4 @@
-from app.scientific_literature.contradiction_intelligence import classify_claim_pair
+from app.scientific_literature.contradiction_intelligence import classify_claim_pair, compare_scientific_context, extract_scientific_context
 
 
 RELATIONSHIP={
@@ -62,3 +62,29 @@ def test_pending_claim_makes_opposite_polarity_provisional_tension():
     )
     assert result["status"]=="provisional_tension"
     assert result["semantic_status"]=="direct_contradiction"
+
+
+def test_context_extraction_detects_treatment_line_population_sampling_and_assay():
+    context=extract_scientific_context(
+        "First-line osimertinib in EGFRm NSCLC used paired plasma samples at baseline and disease progression with next-generation sequencing."
+    )
+    assert context["treatment_line"]==["first_line"]
+    assert context["population"]==["egfr_mutant"]
+    assert context["sampling_timepoints"]==["baseline","progression"]
+    assert "next_generation_sequencing" in context["assay_context"]
+    assert "plasma" in context["assay_context"]
+
+
+def test_context_comparison_flags_treatment_line_and_population_without_calling_contradiction():
+    left=extract_scientific_context(
+        "First-line osimertinib in EGFRm NSCLC. Plasma collected at baseline and progression using next-generation sequencing."
+    )
+    right=extract_scientific_context(
+        "Second-line osimertinib in EGFR T790M EGFR-mutated NSCLC. Plasma collected at baseline and progression using next-generation sequencing."
+    )
+    result=compare_scientific_context(left,right)
+    assert result["status"]=="contextual_divergence"
+    assert "treatment_line" in result["divergent_dimensions"]
+    assert "population" in result["divergent_dimensions"]
+    assert "sampling_timepoints" in result["aligned_dimensions"]
+    assert result["policy"]["context_difference_is_not_direct_contradiction"] is True

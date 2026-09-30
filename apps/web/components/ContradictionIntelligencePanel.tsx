@@ -20,6 +20,7 @@ export type ContradictionPair={
   review_rationale?:string;
   left_polarity?:string;
   right_polarity?:string;
+  context_comparison?:{status:string;confidence:number;divergent_dimensions:string[];aligned_dimensions:string[];rationale:string;dimensions:{dimension:string;status:string;left:string[];right:string[]}[]};
 };
 
 export type ContradictionGroup={
@@ -33,6 +34,8 @@ export type ContradictionGroup={
   provisional_agreement_pair_count:number;
   reviewed_contradiction_pair_count:number;
   provisional_tension_pair_count:number;
+  contextual_divergence_pair_count:number;
+  context_aligned_pair_count:number;
   pairwise_assessments:ContradictionPair[];
   sources:ContradictionSource[];
 };
@@ -46,6 +49,7 @@ export type ContradictionSummary={
   provisional_agreement_group_count:number;
   reviewed_contradiction_group_count:number;
   provisional_tension_group_count:number;
+  contextual_divergence_group_count:number;
   groups:ContradictionGroup[];
   policy:{derived_contradiction_assessment:boolean;canonical_evidence:boolean;does_not_change_evidence_count:boolean;algorithm:string};
 };
@@ -59,7 +63,7 @@ export default function ContradictionIntelligencePanel({summary}:{summary:Contra
       <div>
         <span className="contradictionIntelEyebrow">Derived consistency intelligence</span>
         <h2>Contradiction Intelligence</h2>
-        <p>Compares normalized scientific claims only when their subject, predicate, and object match, and separates reviewed conclusions from provisional states when human review is incomplete.</p>
+        <p>Compares normalized scientific claims only when their subject, predicate, and object match, separates reviewed conclusions from provisional states, and explains contextual differences that may account for apparent disagreement.</p>
       </div>
       <span className="contradictionIntelPolicy">Explainable · deterministic</span>
     </header>
@@ -70,6 +74,7 @@ export default function ContradictionIntelligencePanel({summary}:{summary:Contra
       <div><strong>{summary.provisional_agreement_group_count}</strong><span>provisional agreement</span></div>
       <div><strong>{summary.reviewed_contradiction_group_count}</strong><span>reviewed contradictions</span></div>
       <div><strong>{summary.provisional_tension_group_count}</strong><span>provisional tensions</span></div>
+      <div><strong>{summary.contextual_divergence_group_count}</strong><span>context divergence</span></div>
     </div>
 
     <div className="contradictionIntelList">
@@ -91,6 +96,7 @@ export default function ContradictionIntelligencePanel({summary}:{summary:Contra
           {group.pairwise_assessments.map((pair,pairIndex)=><div className="contradictionPair" key={pair.left_candidate_id+":"+pair.right_candidate_id+":"+pairIndex}>
             <div><strong>{humanize(pair.status)}</strong><span>{Math.round(pair.confidence*100)}% assessment confidence</span></div>
             <p>{pair.rationale}</p>{pair.review_rationale&&<p>{pair.review_rationale}</p>}
+            {pair.context_comparison&&<div className={"contextComparison "+pair.context_comparison.status}><strong>{humanize(pair.context_comparison.status)}</strong><p>{pair.context_comparison.rationale}</p>{pair.context_comparison.divergent_dimensions.length>0&&<small>Divergent: {pair.context_comparison.divergent_dimensions.map(humanize).join(" · ")}</small>}{pair.context_comparison.aligned_dimensions.length>0&&<small>Aligned: {pair.context_comparison.aligned_dimensions.map(humanize).join(" · ")}</small>}</div>}
             <small>{pair.left_pmid?"PMID "+pair.left_pmid:"Publication A"} ↔ {pair.right_pmid?"PMID "+pair.right_pmid:"Publication B"}</small>
           </div>)}
         </div>}
