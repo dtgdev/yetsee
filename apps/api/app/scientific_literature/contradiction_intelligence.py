@@ -40,6 +40,19 @@ def claim_polarity(assertion_text: str, subject_name: str = "") -> str:
     return "negative" if _NEGATION_RE.search(relevant_text) else "positive"
 
 
+def _review_state(left: dict, right: dict, semantic_status: str) -> tuple[str, str]:
+    both_reviewed = left.get("review_status") == "approve" and right.get("review_status") == "approve"
+    if semantic_status == "agreement":
+        if both_reviewed:
+            return "reviewed_agreement", "Both source claims are human-approved and semantically agree."
+        return "provisional_agreement", "The claims agree semantically, but at least one source claim is still pending human review."
+    if semantic_status == "direct_contradiction":
+        if both_reviewed:
+            return "reviewed_contradiction", "Both source claims are human-approved and explicitly contradict one another."
+        return "provisional_tension", "Opposing claim polarity is present, but at least one source claim is still pending human review."
+    return semantic_status, "Review state does not alter this pair classification."
+
+
 def classify_claim_pair(left: dict, right: dict) -> dict:
     same_relation = (
         left["relationship"]["subject"]["key"] == right["relationship"]["subject"]["key"]
@@ -58,21 +71,23 @@ def classify_claim_pair(left: dict, right: dict) -> dict:
     left_polarity = claim_polarity(left.get("assertion_text", ""), subject_name)
     right_polarity = claim_polarity(right.get("assertion_text", ""), subject_name)
 
-    if left_polarity != right_polarity:
-        return {
-            "status": "direct_contradiction",
-            "confidence": 0.95,
-            "rationale": "The normalized relationship matches but the explicit assertion polarity differs.",
-            "left_polarity": left_polarity,
-            "right_polarity": right_polarity,
-        }
-
+    semantic_status = "direct_contradiction" if left_polarity != right_polarity else "agreement"
+    review_aware_status, review_rationale = _review_state(left, right, semantic_status)
+    semantic_rationale = (
+        "The normalized relationship matches but the explicit assertion polarity differs."
+        if semantic_status == "direct_contradiction"
+        else "The normalized relationship and explicit assertion polarity agree."
+    )
     return {
-        "status": "agreement",
+        "status": review_aware_status,
+        "semantic_status": semantic_status,
         "confidence": 0.95,
-        "rationale": "The normalized relationship and explicit assertion polarity agree.",
+        "rationale": semantic_rationale,
+        "review_rationale": review_rationale,
         "left_polarity": left_polarity,
         "right_polarity": right_polarity,
+        "left_review_status": left.get("review_status", "pending"),
+        "right_review_status": right.get("review_status", "pending"),
     }
 
 
@@ -112,13 +127,19 @@ def investigation_contradiction_intelligence(db: Session, investigation_id: str)
                 **result,
             })
 
-        direct_count = sum(pair["status"] == "direct_contradiction" for pair in pairwise)
-        agreement_count = sum(pair["status"] == "agreement" for pair in pairwise)
+        reviewed_contradiction_count = sum(pair["status"] == "reviewed_contradiction" for pair in pairwise)
+        provisional_tension_count = sum(pair["status"] == "provisional_tension" for pair in pairwise)
+        reviewed_agreement_count = sum(pair["status"] == "reviewed_agreement" for pair in pairwise)
+        provisional_agreement_count = sum(pair["status"] == "provisional_agreement" for pair in pairwise)
 
-        if direct_count:
-            overall_status = "direct_contradiction"
-        elif agreement_count:
-            overall_status = "agreement"
+        if reviewed_contradiction_count:
+            overall_status = "reviewed_contradiction"
+        elif provisional_tension_count:
+            overall_status = "provisional_tension"
+        elif reviewed_agreement_count:
+            overall_status = "reviewed_agreement"
+        elif provisional_agreement_count:
+            overall_status = "provisional_agreement"
         elif len(source_claims) == 1:
             overall_status = "single_source"
         else:
@@ -129,20 +150,30 @@ def investigation_contradiction_intelligence(db: Session, investigation_id: str)
             "source_count": len(source_claims),
             "publication_count": len({source["publication_id"] for source in source_claims}),
             "overall_status": overall_status,
-            "agreement_pair_count": agreement_count,
-            "direct_contradiction_pair_count": direct_count,
+            "reviewed_agreement_pair_count": reviewed_agreement_count,
+            "provisional_agreement_pair_count": provisional_agreement_count,
+            "reviewed_contradiction_pair_count": reviewed_contradiction_count,
+            "provisional_tension_pair_count": provisional_tension_count,
+            "agreement_pair_count": reviewed_agreement_count + provisional_agreement_count,
+            "direct_contradiction_pair_count": reviewed_contradiction_count + provisional_tension_count,
             "pairwise_assessments": pairwise,
             "sources": source_claims,
         })
 
-    contradiction_groups = sum(item["overall_status"] == "direct_contradiction" for item in assessments)
-    agreement_groups = sum(item["overall_status"] == "agreement" for item in assessments)
+    reviewed_contradiction_groups = sum(item["overall_status"] == "reviewed_contradiction" for item in assessments)
+    provisional_tension_groups = sum(item["overall_status"] == "provisional_tension" for item in assessments)
+    reviewed_agreement_groups = sum(item["overall_status"] == "reviewed_agreement" for item in assessments)
+    provisional_agreement_groups = sum(item["overall_status"] == "provisional_agreement" for item in assessments)
 
     return {
         "investigation_id": investigation_id,
         "claim_group_count": len(assessments),
-        "agreement_group_count": agreement_groups,
-        "direct_contradiction_group_count": contradiction_groups,
+        "agreement_group_count": reviewed_agreement_groups + provisional_agreement_groups,
+        "direct_contradiction_group_count": reviewed_contradiction_groups,
+        "reviewed_agreement_group_count": reviewed_agreement_groups,
+        "provisional_agreement_group_count": provisional_agreement_groups,
+        "reviewed_contradiction_group_count": reviewed_contradiction_groups,
+        "provisional_tension_group_count": provisional_tension_groups,
         "groups": assessments,
         "policy": {
             "derived_contradiction_assessment": True,
@@ -152,6 +183,8 @@ def investigation_contradiction_intelligence(db: Session, investigation_id: str)
             "different_relationships_are_not_assumed_contradictory": True,
             "rejected_claim_candidates_excluded": True,
             "subject_scoped_polarity": True,
-            "algorithm": "deterministic-claim-contradiction-v1.1",
+            "review_aware_classification": True,
+            "pending_claims_cannot_create_reviewed_agreement_or_contradiction": True,
+            "algorithm": "deterministic-claim-contradiction-v1.2",
         },
     }

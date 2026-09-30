@@ -14,8 +14,10 @@ export type ContradictionPair={
   left_pmid:string|null;
   right_pmid:string|null;
   status:string;
+  semantic_status?:string;
   confidence:number;
   rationale:string;
+  review_rationale?:string;
   left_polarity?:string;
   right_polarity?:string;
 };
@@ -27,6 +29,10 @@ export type ContradictionGroup={
   overall_status:string;
   agreement_pair_count:number;
   direct_contradiction_pair_count:number;
+  reviewed_agreement_pair_count:number;
+  provisional_agreement_pair_count:number;
+  reviewed_contradiction_pair_count:number;
+  provisional_tension_pair_count:number;
   pairwise_assessments:ContradictionPair[];
   sources:ContradictionSource[];
 };
@@ -36,6 +42,10 @@ export type ContradictionSummary={
   claim_group_count:number;
   agreement_group_count:number;
   direct_contradiction_group_count:number;
+  reviewed_agreement_group_count:number;
+  provisional_agreement_group_count:number;
+  reviewed_contradiction_group_count:number;
+  provisional_tension_group_count:number;
   groups:ContradictionGroup[];
   policy:{derived_contradiction_assessment:boolean;canonical_evidence:boolean;does_not_change_evidence_count:boolean;algorithm:string};
 };
@@ -49,15 +59,17 @@ export default function ContradictionIntelligencePanel({summary}:{summary:Contra
       <div>
         <span className="contradictionIntelEyebrow">Derived consistency intelligence</span>
         <h2>Contradiction Intelligence</h2>
-        <p>Compares normalized scientific claims only when their subject, predicate, and object match. Different relationships are not automatically treated as contradictions.</p>
+        <p>Compares normalized scientific claims only when their subject, predicate, and object match, and separates reviewed conclusions from provisional states when human review is incomplete.</p>
       </div>
       <span className="contradictionIntelPolicy">Explainable · deterministic</span>
     </header>
 
     <div className="contradictionIntelSummary">
       <div><strong>{summary.claim_group_count}</strong><span>claim groups</span></div>
-      <div><strong>{summary.agreement_group_count}</strong><span>agreement groups</span></div>
-      <div><strong>{summary.direct_contradiction_group_count}</strong><span>direct contradictions</span></div>
+      <div><strong>{summary.reviewed_agreement_group_count}</strong><span>reviewed agreement</span></div>
+      <div><strong>{summary.provisional_agreement_group_count}</strong><span>provisional agreement</span></div>
+      <div><strong>{summary.reviewed_contradiction_group_count}</strong><span>reviewed contradictions</span></div>
+      <div><strong>{summary.provisional_tension_group_count}</strong><span>provisional tensions</span></div>
     </div>
 
     <div className="contradictionIntelList">
@@ -69,14 +81,16 @@ export default function ContradictionIntelligencePanel({summary}:{summary:Contra
             <small>{humanize(group.relationship.predicate)} · {group.publication_count} distinct publication{group.publication_count===1?"":"s"}</small>
           </div>
           <div className="contradictionIntelCounts">
-            <strong>{group.agreement_pair_count}</strong><span>agree</span>
-            <strong>{group.direct_contradiction_pair_count}</strong><span>contradict</span>
+            <strong>{group.reviewed_agreement_pair_count}</strong><span>reviewed agree</span>
+            <strong>{group.provisional_agreement_pair_count}</strong><span>provisional agree</span>
+            <strong>{group.reviewed_contradiction_pair_count}</strong><span>reviewed contradict</span>
+            <strong>{group.provisional_tension_pair_count}</strong><span>provisional tension</span>
           </div>
         </div>
         {group.pairwise_assessments.length>0&&<div className="contradictionPairs">
           {group.pairwise_assessments.map((pair,pairIndex)=><div className="contradictionPair" key={pair.left_candidate_id+":"+pair.right_candidate_id+":"+pairIndex}>
             <div><strong>{humanize(pair.status)}</strong><span>{Math.round(pair.confidence*100)}% assessment confidence</span></div>
-            <p>{pair.rationale}</p>
+            <p>{pair.rationale}</p>{pair.review_rationale&&<p>{pair.review_rationale}</p>}
             <small>{pair.left_pmid?"PMID "+pair.left_pmid:"Publication A"} ↔ {pair.right_pmid?"PMID "+pair.right_pmid:"Publication B"}</small>
           </div>)}
         </div>}
