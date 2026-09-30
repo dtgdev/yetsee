@@ -25,9 +25,10 @@ _TREATMENT_LINE_RULES = (
     ("second_line", re.compile(r"\bsecond[- ]line\b", re.I)),
     ("third_line", re.compile(r"\bthird[- ]line\b", re.I)),
 )
-_POPULATION_RULES = (
-    ("egfr_t790m", re.compile(r"\bEGFR\s*T790M\b", re.I)),
-    ("egfr_mutant", re.compile(r"\bEGFR(?:m|[- ]mutant|[- ]mutated)\b", re.I)),
+_EGFR_MUTANT_RE = re.compile(r"\bEGFR(?:m|[- ]mutant|[- ]mutated)\b", re.I)
+_T790M_POPULATION_RE = re.compile(
+    r"\b(?:patients?\s+with\s+)?EGFR\s*T790M(?:[- ]positive)?\b(?![- ]mediated)",
+    re.I,
 )
 _SAMPLING_RULES = (
     ("baseline", re.compile(r"\bbaseline\b", re.I)),
@@ -46,7 +47,11 @@ _ASSAY_RULES = (
 def extract_scientific_context(text: str) -> dict:
     clean = text or ""
     treatment_lines = [name for name, pattern in _TREATMENT_LINE_RULES if pattern.search(clean)]
-    populations = [name for name, pattern in _POPULATION_RULES if pattern.search(clean)]
+    populations: list[str] = []
+    if _EGFR_MUTANT_RE.search(clean):
+        populations.append("egfr_mutant")
+    if _T790M_POPULATION_RE.search(clean):
+        populations.append("egfr_t790m")
     sampling = [name for name, pattern in _SAMPLING_RULES if pattern.search(clean)]
     assays = [name for name, pattern in _ASSAY_RULES if pattern.search(clean)]
     return {
@@ -70,9 +75,14 @@ def compare_scientific_context(left: dict, right: dict) -> dict:
         elif left_values == right_values:
             status = "aligned"
             aligned_dimensions.append(dimension)
-        elif set(left_values) & set(right_values):
-            status = "partial_overlap"
+        elif dimension == "population" and set(left_values) & set(right_values):
+            status = "nested_population"
             divergent_dimensions.append(dimension)
+        elif dimension in {"sampling_timepoints", "assay_context"} and set(left_values) & set(right_values):
+            status = "compatible_partial"
+            aligned_dimensions.append(dimension)
+        elif not left_values or not right_values:
+            status = "insufficient_context"
         else:
             status = "different"
             divergent_dimensions.append(dimension)
@@ -107,6 +117,8 @@ def compare_scientific_context(left: dict, right: dict) -> dict:
         "policy": {
             "context_difference_is_not_direct_contradiction": True,
             "missing_context_remains_unknown": True,
+            "partial_assay_or_sampling_overlap_is_compatible": True,
+            "population_specificity_is_contextually_meaningful": True,
         },
     }
 
@@ -310,6 +322,6 @@ def investigation_contradiction_intelligence(db: Session, investigation_id: str)
             "pending_claims_cannot_create_reviewed_agreement_or_contradiction": True,
             "contextual_divergence_is_not_direct_contradiction": True,
             "context_dimensions": ["treatment_line", "population", "sampling_timepoints", "assay_context"],
-            "algorithm": "deterministic-claim-contradiction-v1.3",
+            "algorithm": "deterministic-claim-contradiction-v1.3.1",
         },
     }
