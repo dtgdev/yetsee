@@ -115,3 +115,17 @@ def test_partial_assay_overlap_is_compatible_not_divergent():
     assert assay["status"]=="compatible_partial"
     assert "assay_context" in result["aligned_dimensions"]
     assert "assay_context" not in result["divergent_dimensions"]
+
+
+def test_bare_t790m_mechanism_mention_is_not_population_definition():
+    context=extract_scientific_context(
+        "First-line osimertinib in EGFRm NSCLC. No EGFR T790M-mediated acquired resistance was observed."
+    )
+    assert context["population"]==["egfr_mutant"]
+
+
+def test_t790m_nsclc_phrase_is_population_definition():
+    context=extract_scientific_context(
+        "Second-line osimertinib in EGFR T790M advanced NSCLC."
+    )
+    assert context["population"]==["egfr_mutant","egfr_t790m"] or context["population"]==["egfr_t790m"]
