@@ -88,3 +88,30 @@ def test_context_comparison_flags_treatment_line_and_population_without_calling_
     assert "population" in result["divergent_dimensions"]
     assert "sampling_timepoints" in result["aligned_dimensions"]
     assert result["policy"]["context_difference_is_not_direct_contradiction"] is True
+
+
+def test_t790m_mechanism_mention_does_not_reclassify_population():
+    context=extract_scientific_context(
+        "First-line osimertinib in EGFRm NSCLC. No EGFR T790M-mediated acquired resistance was observed."
+    )
+    assert context["population"]==["egfr_mutant"]
+
+
+def test_partial_assay_overlap_is_compatible_not_divergent():
+    left={
+        "treatment_line":["first_line"],
+        "population":["egfr_mutant"],
+        "sampling_timepoints":["baseline","progression"],
+        "assay_context":["next_generation_sequencing","circulating_tumor_dna","plasma"],
+    }
+    right={
+        "treatment_line":["first_line"],
+        "population":["egfr_mutant"],
+        "sampling_timepoints":["baseline","progression"],
+        "assay_context":["next_generation_sequencing","plasma"],
+    }
+    result=compare_scientific_context(left,right)
+    assay=next(item for item in result["dimensions"] if item["dimension"]=="assay_context")
+    assert assay["status"]=="compatible_partial"
+    assert "assay_context" in result["aligned_dimensions"]
+    assert "assay_context" not in result["divergent_dimensions"]
