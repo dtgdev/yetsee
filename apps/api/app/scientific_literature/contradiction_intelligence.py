@@ -27,7 +27,7 @@ _TREATMENT_LINE_RULES = (
 )
 _EGFR_MUTANT_RE = re.compile(r"\bEGFR(?:m|[- ]mutant|[- ]mutated)\b", re.I)
 _T790M_POPULATION_RE = re.compile(
-    r"\b(?:patients?\s+with\s+)?EGFR\s*T790M(?:[- ]positive)?\b(?![- ]mediated)",
+    r"\b(?:patients?\s+with\s+EGFR\s*T790M(?:[- ]positive)?|EGFR\s*T790M(?:[- ]positive)?\s+(?:advanced\s+)?(?:non[- ]small[- ]cell\s+lung\s+cancer|NSCLC))\b",
     re.I,
 )
 _SAMPLING_RULES = (
@@ -322,6 +322,6 @@ def investigation_contradiction_intelligence(db: Session, investigation_id: str)
             "pending_claims_cannot_create_reviewed_agreement_or_contradiction": True,
             "contextual_divergence_is_not_direct_contradiction": True,
             "context_dimensions": ["treatment_line", "population", "sampling_timepoints", "assay_context"],
-            "algorithm": "deterministic-claim-contradiction-v1.3.1",
+            "algorithm": "deterministic-claim-contradiction-v1.3.2",
         },
     }
