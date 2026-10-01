@@ -10,6 +10,7 @@ import "./literature-synthesis.css";
 import "./study-quality.css";
 import "./question-evidence-hierarchy.css";
 import "./contradiction-intelligence.css";
+import "./evidence-gap-intelligence.css";
 import "./study-independence.css";
 import "./workspace-recovery.css";
 
