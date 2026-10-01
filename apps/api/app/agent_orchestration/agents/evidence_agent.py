@@ -5,6 +5,8 @@ from sqlalchemy import select
 from app.agent_orchestration.contracts import AgentManifest, AgentResult, FindingDraft
 from app.agent_orchestration.agents.common import investigation_bundle
 from app.investigation_runtime.evidence_accounting import investigation_evidence_accounting
+from app.scientific_literature.evidence_gap_intelligence import investigation_evidence_gap_intelligence
+from app.scientific_literature.study_independence import investigation_study_independence
 from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink
 
 
@@ -34,7 +36,7 @@ class EvidenceAgent:
     def manifest(self):
         return AgentManifest(
             "evidence_agent",
-            "1.2",
+            "1.3",
             "Evidence Agent",
             "Audits investigation evidence coverage, source independence, repetition, and contradiction gaps without rewriting observations.",
             ("audit_evidence", "detect_source_gaps", "suggest_sources", "audit_contradictions"),
@@ -99,15 +101,54 @@ class EvidenceAgent:
             ))
 
         semantic_kind = (investigation.attributes or {}).get("semantic_kind")
+        scientific_mode = independent_publication_count > 0 or semantic_kind in {"science", "scientific", "biomedical", "clinical"}
+        evidence_gaps = None
+        independence = None
+        if scientific_mode:
+            evidence_gaps = investigation_evidence_gap_intelligence(db, investigation.id)
+            independence = investigation_study_independence(db, investigation.id)
+
         recommended_families = _suggested_source_families(
             semantic_kind=semantic_kind,
             independent_publication_count=independent_publication_count,
         )
-        suggestions = [source for source in recommended_families if source not in observation_sources]
-        if suggestions:
+        covered_families = set(observation_sources)
+        if independent_publication_count > 0:
+            covered_families.add("pubmed")
+        suggestions = [source for source in recommended_families if source not in covered_families]
+
+        if scientific_mode and evidence_gaps and evidence_gaps["gap_count"] > 0:
+            prioritized = evidence_gaps["gaps"][:3]
+            gap_titles = "; ".join(gap["title"] for gap in prioritized)
+            next_steps = [
+                item
+                for gap in prioritized
+                for item in gap.get("suggested_next_evidence", [])
+            ][:3]
+            findings.append(FindingDraft(
+                category="evidence_gap_guidance",
+                title="Resolve current evidence gaps next",
+                detail=(
+                    f"Current prioritized gaps: {gap_titles}. "
+                    + ("Recommended next evidence: " + " ".join(next_steps) if next_steps else "")
+                ).strip(),
+                severity="info",
+                stance="neutral",
+                confidence=0.95,
+                metadata={
+                    "gap_count": evidence_gaps["gap_count"],
+                    "priority_counts": evidence_gaps["priority_counts"],
+                    "prioritized_gap_types": [gap["gap_type"] for gap in prioritized],
+                    "suggested_next_evidence": next_steps,
+                    "study_independence_status": independence["overall_status"] if independence else None,
+                    "current_distinct_publications": independent_publication_count,
+                    "gap_policy": evidence_gaps["policy"],
+                },
+            ))
+        elif suggestions:
             findings.append(FindingDraft(
                 category="missing_sources",
-                title="Collect independent evidence next",
+                title="Collect additional evidence next",
                 detail="Recommended source families: " + ", ".join(suggestions[:4]) + ". These are suggestions, not evidence, and must be ingested before affecting confidence.",
                 severity="info",
                 stance="neutral",
@@ -115,8 +156,8 @@ class EvidenceAgent:
                 metadata={
                     "suggested_sources": suggestions[:4],
                     "current_observation_sources": observation_sources,
-                    "current_independent_sources": independent_source_count,
-                    "current_independent_publications": independent_publication_count,
+                    "current_distinct_sources": independent_source_count,
+                    "current_distinct_publications": independent_publication_count,
                     "recommendation_profile": "scientific" if recommended_families == SCIENTIFIC_SOURCES else (semantic_kind or "default"),
                 },
             ))
@@ -139,8 +180,14 @@ class EvidenceAgent:
                 ))
 
         return AgentResult(
-            summary=f"Audited {investigation.title}: {accounting['canonical_evidence_count']} canonical evidence item(s), {independent_source_count} independent source(s), {len(findings)} finding(s).",
-            recommendation="collect_independent_evidence" if independent_source_count < 2 else "continue_review",
+            summary=f"Audited {investigation.title}: {accounting['canonical_evidence_count']} canonical evidence item(s), {independent_source_count} distinct source(s), {len(findings)} finding(s).",
+            recommendation=(
+                "collect_additional_evidence"
+                if independent_source_count < 2
+                else "resolve_evidence_gaps"
+                if evidence_gaps and evidence_gaps["gap_count"] > 0
+                else "continue_review"
+            ),
             confidence=0.96,
             findings=findings,
             output={
@@ -153,6 +200,8 @@ class EvidenceAgent:
                 "effective_evidence_patterns": len(unique_fingerprints),
                 "repeated_observations": repeated_count,
                 "suggested_sources": suggestions[:4],
+                "evidence_gap_count": evidence_gaps["gap_count"] if evidence_gaps else 0,
+                "study_independence_status": independence["overall_status"] if independence else None,
                 "hypotheses": len(hypotheses),
                 "evidence_accounting_policy": accounting["policy"],
             },
