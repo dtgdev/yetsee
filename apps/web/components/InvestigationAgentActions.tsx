@@ -81,15 +81,16 @@ export default function InvestigationAgentActions({ investigationId }: { investi
         <div>
           <span className="labLabel">Scientific evidence</span>
           <h3>{primaryProfile.subject} → {humanize(primaryProfile.predicate)} → {primaryProfile.object}</h3>
-          <p>{humanize(primaryProfile.strength)} evidence · {humanize(primaryProfile.agreement)} · {primaryProfile.independent_publication_count} independent {primaryProfile.independent_publication_count===1?"study":"studies"}</p>
+          <p>{humanize(primaryProfile.strength)} evidence · {humanize(primaryProfile.agreement)} · {primaryProfile.independent_publication_count} distinct {primaryProfile.independent_publication_count===1?"publication":"publications"}</p>
         </div>
         <span className="evidenceBoundary">Evidence ≠ Interpretation</span>
       </header>
       <div className="evidenceCounts">
         <span><b>{primaryProfile.supporting_count}</b> supporting</span>
         <span><b>{primaryProfile.contradicting_count}</b> contradicting</span>
-        <span><b>{primaryProfile.independent_publication_count}</b> independent studies</span>
+        <span><b>{primaryProfile.independent_publication_count}</b> distinct publications</span>
       </div>
+      <p className="mechanicsNote">Publication count does not establish study independence. Study independence is assessed separately in the Evidence lens.</p>
       <Link className="tinyLink" href={`/investigations/${investigationId}?lens=evidence`}>View scientific evidence →</Link>
     </section>}
 
