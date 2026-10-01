@@ -48,7 +48,7 @@ class EvidenceAgent:
         findings = []
         observation_sources = sorted({item.source for item in observations})
         accounting = investigation_evidence_accounting(db, investigation.id)
-        independent_source_count = accounting["independent_source_count"]
+        accounting_source_count = accounting["independent_source_count"]
         independent_publication_count = accounting["independent_publication_count"]
         literature_sources = sorted({
             f"PubMed {item['publication']['pmid']}" if item.get("publication") and item["publication"].get("pmid") else f"Publication {item['publication']['id']}"
@@ -56,6 +56,9 @@ class EvidenceAgent:
             if item.get("publication")
         })
         source_labels = observation_sources + literature_sources
+        # Agent source diversity is family/publication based rather than raw evidence-item based.
+        # Multiple observations from the same upstream source are not independent confirmations.
+        independent_source_count = len(observation_sources) + independent_publication_count
 
         # Repeated ingestion runs are useful history but do not equal independent evidence.
         fingerprints = [
@@ -79,6 +82,7 @@ class EvidenceAgent:
                     "observation_sources": observation_sources,
                     "independent_publications": independent_publication_count,
                     "literature_sources": literature_sources,
+                    "accounting_source_count": accounting_source_count,
                     "accounting_policy": accounting["policy"],
                 },
             ))
@@ -194,6 +198,7 @@ class EvidenceAgent:
                 "observations": len(observations),
                 "canonical_evidence": accounting["canonical_evidence_count"],
                 "independent_sources": independent_source_count,
+                "accounting_sources": accounting_source_count,
                 "independent_publications": independent_publication_count,
                 "observation_sources": observation_sources,
                 "literature_sources": literature_sources,
