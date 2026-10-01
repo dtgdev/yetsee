@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.knowledge_graph.resolver import ResolvedEntity, extract_known_entities, resolve_phrase
+from app.knowledge_graph.writer import governed_entity, governed_relationship
 from app.models.entity import Entity
 from app.models.feature import Feature
 from app.models.graph import GraphRun
@@ -17,21 +18,14 @@ from app.models.semantic import SemanticConcept
 
 
 def _entity(db: Session, resolved: ResolvedEntity) -> Entity:
-    existing = db.scalar(select(Entity).where(Entity.canonical_key == resolved.canonical_key))
-    if existing:
-        aliases = list(dict.fromkeys([*existing.aliases, *resolved.aliases]))
-        existing.aliases = aliases
-        return existing
-    item = Entity(
+    return governed_entity(
+        db,
         kind=resolved.kind,
         canonical_name=resolved.canonical_name,
         canonical_key=resolved.canonical_key,
-        aliases=list(resolved.aliases),
+        aliases=resolved.aliases,
         attributes={"resolver": "canonical_v1"},
     )
-    db.add(item)
-    db.flush()
-    return item
 
 
 def _upsert_edge(
@@ -44,32 +38,23 @@ def _upsert_edge(
     confidence: float,
     provenance: dict,
 ) -> Relationship:
-    edge = db.scalar(
-        select(Relationship).where(
-            Relationship.source_entity_id == source.id,
-            Relationship.target_entity_id == target.id,
-            Relationship.kind == kind,
-        )
+    edge = governed_relationship(
+        db,
+        source=source,
+        target=target,
+        kind=kind,
+        confidence=confidence,
+        evidence_ids=[evidence_id],
+        first_seen=observed_at,
+        last_seen=observed_at,
+        provenance=provenance,
     )
-    if edge is None:
-        edge = Relationship(
-            source_entity_id=source.id,
-            target_entity_id=target.id,
-            kind=kind,
-            confidence=confidence,
-            evidence_ids=[evidence_id],
-            first_seen=observed_at,
-            last_seen=observed_at,
-            provenance=provenance,
+    # Preserve the existing gradual evidence-backed confidence behavior.
+    if len(edge.evidence_ids) > 1:
+        edge.confidence = min(
+            0.99,
+            max(edge.confidence, confidence) + min(0.15, 0.02 * (len(edge.evidence_ids) - 1)),
         )
-        db.add(edge)
-        return edge
-    edge.evidence_ids = list(dict.fromkeys([*edge.evidence_ids, evidence_id]))
-    edge.first_seen = min(filter(None, [edge.first_seen, observed_at]))
-    edge.last_seen = max(filter(None, [edge.last_seen, observed_at]))
-    # Confidence rises slowly as independent evidence accumulates but remains bounded.
-    edge.confidence = min(0.99, max(edge.confidence, confidence) + min(0.15, 0.02 * (len(edge.evidence_ids) - 1)))
-    edge.provenance = {**edge.provenance, **provenance, "evidence_count": len(edge.evidence_ids)}
     return edge
 
 
@@ -117,16 +102,17 @@ def _semantic_edges(db: Session, subject_entities: dict[str, Entity]) -> int:
             )
             now = datetime.now(timezone.utc)
             if edge is None:
-                db.add(Relationship(
-                    source_entity_id=left_entity.id,
-                    target_entity_id=right_entity.id,
+                governed_relationship(
+                    db,
+                    source=left_entity,
+                    target=right_entity,
                     kind="SEMANTICALLY_RELATED_TO",
                     confidence=min(0.95, score),
                     evidence_ids=evidence_ids,
                     first_seen=now,
                     last_seen=now,
                     provenance={"method": "semantic_fingerprint_cosine", "similarity": round(score, 4)},
-                ))
+                )
                 count += 1
     return count
 
