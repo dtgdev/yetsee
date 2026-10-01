@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.graph_projection_routes import router as graph_projection_router
 from app.api.mission_routes import router as mission_router
+from app.api.ontology_routes import router as ontology_router
 from app.api.routes import router
 from app.api.scientific_literature_routes import router as scientific_literature_router
 from app.core.config import settings
@@ -35,4 +36,5 @@ def root() -> dict[str, str]:
 app.include_router(router, prefix=settings.api_v1_prefix)
 app.include_router(graph_projection_router, prefix=settings.api_v1_prefix, tags=["graph-projections"])
 app.include_router(mission_router, prefix=settings.api_v1_prefix, tags=["missions"])
+app.include_router(ontology_router, prefix=settings.api_v1_prefix, tags=["ontology"])
 app.include_router(scientific_literature_router, prefix=settings.api_v1_prefix, tags=["scientific-literature"])
