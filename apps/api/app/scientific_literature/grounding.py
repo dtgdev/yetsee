@@ -7,23 +7,19 @@ from app.models.entity import Entity
 from app.models.evidence import EvidenceLink
 from app.models.investigation import Investigation
 from app.models.relationship import Relationship
+from app.knowledge_graph.writer import governed_entity, governed_relationship
 from app.models.scientific_literature import ScientificClaim, ScientificPassage, ScientificPublication
 
 
 def _entity(db: Session, *, kind: str, canonical_name: str, canonical_key: str) -> Entity:
-    existing = db.scalar(select(Entity).where(Entity.canonical_key == canonical_key))
-    if existing is not None:
-        return existing
-    entity = Entity(
+    return governed_entity(
+        db,
         kind=kind,
         canonical_name=canonical_name,
         canonical_key=canonical_key,
         aliases=[],
         attributes={"scientific_grounding": True},
     )
-    db.add(entity)
-    db.flush()
-    return entity
 
 
 def _with_investigation_context(payload: dict, investigation_id: str) -> dict:
@@ -110,39 +106,34 @@ def ground_claim_relationship(
         db.add(claim)
         db.flush()
 
-    relationship = db.scalar(
+    existing_relationship = db.scalar(
         select(Relationship).where(
             Relationship.source_entity_id == subject.id,
             Relationship.target_entity_id == obj.id,
             Relationship.kind == predicate,
         )
     )
-    created = relationship is None
-    if relationship is None:
-        relationship = Relationship(
-            source_entity_id=subject.id,
-            target_entity_id=obj.id,
-            kind=predicate,
-            confidence=1.0,
-            evidence_ids=[passage.id],
-            provenance={},
-        )
-        db.add(relationship)
-        db.flush()
-    elif passage.id not in relationship.evidence_ids:
-        relationship.evidence_ids = [*relationship.evidence_ids, passage.id]
-
-    relationship.provenance = {
-        **relationship.provenance,
-        "scientific_grounding": True,
-        "claim_ids": sorted(set([*relationship.provenance.get("claim_ids", []), claim.id])),
-        "passage_ids": sorted(set([*relationship.provenance.get("passage_ids", []), passage.id])),
-        "publication_ids": sorted(set([*relationship.provenance.get("publication_ids", []), publication.id])),
-        "pmids": sorted(set([*relationship.provenance.get("pmids", []), *([publication.pmid] if publication.pmid else [])])),
-        "dois": sorted(set([*relationship.provenance.get("dois", []), *([publication.doi] if publication.doi else [])])),
-        "investigation_ids": sorted(set([*relationship.provenance.get("investigation_ids", []), *([investigation_id] if investigation_id else [])])),
-        "canonical_evidence_kind": "scientific_passage",
-    }
+    created = existing_relationship is None
+    existing_provenance = existing_relationship.provenance if existing_relationship is not None else {}
+    relationship = governed_relationship(
+        db,
+        source=subject,
+        target=obj,
+        kind=predicate,
+        confidence=1.0,
+        evidence_ids=[passage.id],
+        provenance={
+            **existing_provenance,
+            "scientific_grounding": True,
+            "claim_ids": sorted(set([*existing_provenance.get("claim_ids", []), claim.id])),
+            "passage_ids": sorted(set([*existing_provenance.get("passage_ids", []), passage.id])),
+            "publication_ids": sorted(set([*existing_provenance.get("publication_ids", []), publication.id])),
+            "pmids": sorted(set([*existing_provenance.get("pmids", []), *([publication.pmid] if publication.pmid else [])])),
+            "dois": sorted(set([*existing_provenance.get("dois", []), *([publication.doi] if publication.doi else [])])),
+            "investigation_ids": sorted(set([*existing_provenance.get("investigation_ids", []), *([investigation_id] if investigation_id else [])])),
+            "canonical_evidence_kind": "scientific_passage",
+        },
+    )
     claim.extraction_json = {
         **claim.extraction_json,
         "subject_entity_id": subject.id,
