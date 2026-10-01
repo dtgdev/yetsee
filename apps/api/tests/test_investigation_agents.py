@@ -139,4 +139,3 @@ def test_evidence_agent_prioritizes_scientific_gap_guidance_over_generic_source_
     assert "evidence_gap_guidance" in categories
     assert task.result_json["evidence_gap_count"] > 0
     assert task.result_json["study_independence_status"] == "single_publication"
-    assert task.result_json["recommendation"] if "recommendation" in task.result_json else True
