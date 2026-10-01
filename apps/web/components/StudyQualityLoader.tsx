@@ -6,16 +6,19 @@ import StudyIndependencePanel, { type StudyIndependenceSummary } from "./StudyIn
 import StudyQualityPanel, { type StudyQualitySummary } from "./StudyQualityPanel";
 import QuestionEvidenceHierarchyPanel, { type QuestionEvidenceHierarchySummary } from "./QuestionEvidenceHierarchyPanel";
 import ContradictionIntelligencePanel, { type ContradictionSummary } from "./ContradictionIntelligencePanel";
+import EvidenceGapIntelligencePanel, { type EvidenceGapSummary } from "./EvidenceGapIntelligencePanel";
 
 export default function StudyQualityLoader({investigationId}:{investigationId:string}){
   const [quality,setQuality]=useState<StudyQualitySummary|null>(null);
   const [independence,setIndependence]=useState<StudyIndependenceSummary|null>(null);
   const [hierarchy,setHierarchy]=useState<QuestionEvidenceHierarchySummary|null>(null);
   const [contradiction,setContradiction]=useState<ContradictionSummary|null>(null);
+  const [evidenceGaps,setEvidenceGaps]=useState<EvidenceGapSummary|null>(null);
   const [qualityStatus,setQualityStatus]=useState<"loading"|"ready"|"error">("loading");
   const [independenceStatus,setIndependenceStatus]=useState<"loading"|"ready"|"error">("loading");
   const [hierarchyStatus,setHierarchyStatus]=useState<"loading"|"ready"|"error">("loading");
   const [contradictionStatus,setContradictionStatus]=useState<"loading"|"ready"|"error">("loading");
+  const [evidenceGapStatus,setEvidenceGapStatus]=useState<"loading"|"ready"|"error">("loading");
 
   useEffect(()=>{
     let active=true;
@@ -31,6 +34,9 @@ export default function StudyQualityLoader({investigationId}:{investigationId:st
     apiGet<ContradictionSummary>(`/api/v1/investigations/${investigationId}/contradiction-intelligence`)
       .then(result=>{if(active){setContradiction(result);setContradictionStatus("ready")}})
       .catch(()=>{if(active)setContradictionStatus("error")});
+    apiGet<EvidenceGapSummary>(`/api/v1/investigations/${investigationId}/evidence-gap-intelligence`)
+      .then(result=>{if(active){setEvidenceGaps(result);setEvidenceGapStatus("ready")}})
+      .catch(()=>{if(active)setEvidenceGapStatus("error")});
     return()=>{active=false};
   },[investigationId]);
 
@@ -49,5 +55,9 @@ export default function StudyQualityLoader({investigationId}:{investigationId:st
     {contradictionStatus==="loading"&&<section className="contradictionIntel"><span className="contradictionIntelEyebrow">Derived consistency intelligence</span><p>Loading contradiction assessment…</p></section>}
     {contradictionStatus==="error"&&<section className="contradictionIntel"><span className="contradictionIntelEyebrow">Derived consistency intelligence</span><h2>Contradiction Intelligence</h2><p>Contradiction assessment is temporarily unavailable. Canonical evidence remains unchanged.</p></section>}
     {contradictionStatus==="ready"&&contradiction&&<ContradictionIntelligencePanel summary={contradiction}/>} 
+
+    {evidenceGapStatus==="loading"&&<section className="evidenceGapIntel"><span className="evidenceGapIntelEyebrow">Derived investigation guidance</span><p>Loading evidence-gap assessment…</p></section>}
+    {evidenceGapStatus==="error"&&<section className="evidenceGapIntel"><span className="evidenceGapIntelEyebrow">Derived investigation guidance</span><h2>Evidence Gap Intelligence</h2><p>Evidence-gap assessment is temporarily unavailable. Canonical evidence and prior scientific assessments remain unchanged.</p></section>}
+    {evidenceGapStatus==="ready"&&evidenceGaps&&<EvidenceGapIntelligencePanel summary={evidenceGaps}/>} 
   </>;
 }
