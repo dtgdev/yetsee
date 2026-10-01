@@ -39,6 +39,10 @@ CORE_ENTITY_TYPES: tuple[EntityTypeSpec, ...] = (
     EntityTypeSpec("assessment", "core", "Derived quality, consistency, independence, risk, or gap assessment.", "entity"),
     EntityTypeSpec("opportunity", "core", "Derived opportunity hypothesis or opportunity object.", "entity"),
     EntityTypeSpec("risk", "core", "Derived or reported risk object.", "entity"),
+    EntityTypeSpec("topic", "core", "General investigation or observation topic.", "entity"),
+    EntityTypeSpec("behavior", "core", "Observed behavior or behavioral pattern.", "topic"),
+    EntityTypeSpec("product_category", "core", "Product or service category.", "market"),
+    EntityTypeSpec("industry", "core", "Industry or economic sector.", "market"),
 )
 
 DOMAIN_ENTITY_TYPES: dict[str, tuple[EntityTypeSpec, ...]] = {
@@ -58,6 +62,7 @@ DOMAIN_ENTITY_TYPES: dict[str, tuple[EntityTypeSpec, ...]] = {
         EntityTypeSpec("assay", "science", "Assay or measurement method.", "technology"),
         EntityTypeSpec("outcome", "science", "Scientific or clinical outcome.", "entity"),
         EntityTypeSpec("evidence_gap", "science", "Derived scientific evidence gap.", "assessment"),
+        EntityTypeSpec("drug_resistance", "science", "Drug-resistance state or phenotype.", "outcome"),
     ),
     "business": (
         EntityTypeSpec("company", "business", "Commercial organization.", "organization"),
@@ -106,6 +111,10 @@ CORE_RELATIONSHIP_TYPES: tuple[RelationshipTypeSpec, ...] = (
     RelationshipTypeSpec("ABOUT", "core", ("claim", "assessment", "source"), ("entity",), "Connects information to the entity it concerns."),
     RelationshipTypeSpec("PART_OF", "core", ("entity",), ("entity",), "Generic containment or membership relationship."),
     RelationshipTypeSpec("RELATED_TO", "core", ("entity",), ("entity",), "Generic governed fallback relation when a more specific relation is unavailable."),
+    RelationshipTypeSpec("OBSERVED_ON", "core", ("entity",), ("source",), "Observation topic was observed on or through a source."),
+    RelationshipTypeSpec("MEASURED_BY", "core", ("entity",), ("metric",), "Entity or topic is measured by a metric."),
+    RelationshipTypeSpec("MENTIONS", "core", ("entity",), ("entity",), "Evidence-backed mention of another entity."),
+    RelationshipTypeSpec("SEMANTICALLY_RELATED_TO", "core", ("entity",), ("entity",), "Deterministic semantic similarity relationship.", directed=False),
 )
 
 DOMAIN_RELATIONSHIP_TYPES: dict[str, tuple[RelationshipTypeSpec, ...]] = {
@@ -120,6 +129,8 @@ DOMAIN_RELATIONSHIP_TYPES: dict[str, tuple[RelationshipTypeSpec, ...]] = {
         RelationshipTypeSpec("STUDY_REPLICATES", "science", ("study", "clinical_trial"), ("study", "clinical_trial"), "Study provides replication evidence for another study."),
         RelationshipTypeSpec("STUDY_OVERLAPS_WITH", "science", ("study", "clinical_trial", "cohort"), ("study", "clinical_trial", "cohort"), "Studies or cohorts share participants, trial identity, or material provenance.", directed=False),
         RelationshipTypeSpec("EVIDENCE_GAP_CONCERNS", "science", ("evidence_gap",), ("claim", "study", "population", "mechanism", "entity"), "Evidence gap concerns a graph object."),
+        RelationshipTypeSpec("contributes_to", "science", ("mechanism", "genomic_alteration", "biomarker"), ("drug_resistance", "outcome", "disease", "entity"), "Compatibility relation used by current scientific grounding for contribution claims."),
+        RelationshipTypeSpec("reported_as_resistance_mechanism", "science", ("mechanism", "genomic_alteration", "biomarker"), ("drug_resistance", "outcome", "entity"), "Compatibility relation used by current scientific candidate grounding."),
     ),
     "business": (
         RelationshipTypeSpec("COMPANY_LAUNCHED_PRODUCT", "business", ("company",), ("product",), "Company launched a product."),
@@ -178,12 +189,40 @@ def relationship_types(domain: str | None = None) -> tuple[RelationshipTypeSpec,
     return DOMAIN_RELATIONSHIP_TYPES.get(domain, ())
 
 
+def entity_type_spec(kind: str) -> EntityTypeSpec | None:
+    return next((item for item in entity_types() if item.name == kind), None)
+
+
+def relationship_type_spec(kind: str) -> RelationshipTypeSpec | None:
+    return next((item for item in relationship_types() if item.name == kind), None)
+
+
 def validate_entity_type(kind: str) -> bool:
-    return kind in {item.name for item in entity_types()}
+    return entity_type_spec(kind) is not None
 
 
 def validate_relationship_type(kind: str) -> bool:
-    return kind in {item.name for item in relationship_types()}
+    return relationship_type_spec(kind) is not None
+
+
+def entity_type_is_a(kind: str, expected: str) -> bool:
+    current = entity_type_spec(kind)
+    seen: set[str] = set()
+    while current is not None and current.name not in seen:
+        if current.name == expected:
+            return True
+        seen.add(current.name)
+        current = entity_type_spec(current.parent) if current.parent else None
+    return False
+
+
+def relationship_endpoints_valid(kind: str, source_kind: str, target_kind: str) -> bool:
+    spec = relationship_type_spec(kind)
+    if spec is None:
+        return False
+    source_ok = any(entity_type_is_a(source_kind, allowed) for allowed in spec.source_types)
+    target_ok = any(entity_type_is_a(target_kind, allowed) for allowed in spec.target_types)
+    return source_ok and target_ok
 
 
 def ontology_manifest(domain: str | None = None) -> dict:
