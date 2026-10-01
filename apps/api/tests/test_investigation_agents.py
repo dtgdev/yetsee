@@ -12,6 +12,7 @@ from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink
 from app.models.investigation import Investigation
 from app.models.observation import Observation
 from app.models.kernel import KernelEvent
+from app.models.scientific_literature import ScientificPassage, ScientificPublication
 
 
 def db_session():
@@ -82,3 +83,60 @@ def test_refresh_recalculates_without_compounding_confidence():
     event_types = [row.event_type for row in db.query(KernelEvent).filter(KernelEvent.aggregate_id == inv.id).all()]
     assert "HypothesisRecalculated" in event_types
     assert "InvestigationRefreshed" in event_types
+
+
+def test_evidence_agent_prioritizes_scientific_gap_guidance_over_generic_source_request():
+    db = db_session()
+    inv = Investigation(
+        title="Osimertinib resistance",
+        slug="osimertinib-resistance-agent-gap",
+        status="under_review",
+        confidence=0.0,
+        summary="What mechanisms contribute to acquired resistance to osimertinib in EGFR-mutant NSCLC?",
+        attributes={"semantic_kind": "scientific", "research_question": "What mechanisms contribute to acquired resistance to osimertinib in EGFR-mutant NSCLC?"},
+    )
+    db.add(inv); db.flush()
+    publication = ScientificPublication(
+        source_system="pubmed",
+        source_id="99900001",
+        pmid="99900001",
+        doi=None,
+        title="Candidate mechanisms of acquired resistance to first-line osimertinib in EGFR-mutant NSCLC",
+        journal="Test Journal",
+        authors_json=[],
+        metadata_json={"clinical_trial_ids": ["NCT00000001"]},
+        source_url="https://pubmed.ncbi.nlm.nih.gov/99900001/",
+        retrieval_ref="test",
+        content_hash="pub-99900001",
+    )
+    db.add(publication); db.flush()
+    passage = ScientificPassage(
+        publication_id=publication.id,
+        section="abstract",
+        locator="abstract:1",
+        text="Phase 3 study of first-line osimertinib in EGFRm NSCLC with paired plasma samples at baseline and progression.",
+        content_hash="passage-99900001",
+        provenance_json={},
+    )
+    db.add(passage); db.flush()
+    db.add(EvidenceLink(investigation_id=inv.id, scientific_passage_id=passage.id, stance="supporting", weight=1.0))
+    db.commit()
+
+    task = run_agent(
+        db,
+        agent_id="evidence_agent",
+        task_type="AUDIT_INVESTIGATION_EVIDENCE",
+        target_type="investigation",
+        target_id=inv.id,
+    )
+    findings = db.query(AgentFinding).filter(AgentFinding.task_id == task.id).all()
+    titles = {finding.title for finding in findings}
+    categories = {finding.category for finding in findings}
+
+    assert task.status == "completed"
+    assert "Resolve current evidence gaps next" in titles
+    assert "Collect independent evidence next" not in titles
+    assert "evidence_gap_guidance" in categories
+    assert task.result_json["evidence_gap_count"] > 0
+    assert task.result_json["study_independence_status"] == "single_publication"
+    assert task.result_json["recommendation"] if "recommendation" in task.result_json else True
