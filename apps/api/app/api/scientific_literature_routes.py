@@ -17,6 +17,7 @@ from app.scientific_literature.evidence import bind_passage_to_investigation, li
 from app.scientific_literature.evidence_gap_intelligence import investigation_evidence_gap_intelligence
 from app.scientific_literature.evidence_profile import investigation_evidence_profiles, relationship_evidence_profile
 from app.scientific_literature.grounding import ground_claim_relationship
+from app.scientific_literature.graph_projection import project_investigation_literature_graph
 from app.scientific_literature.pubmed import ingest_pubmed_article
 from app.scientific_literature.question_evidence_hierarchy import investigation_question_evidence_hierarchy
 from app.scientific_literature.study_independence import investigation_study_independence
@@ -58,6 +59,11 @@ def add_literature_evidence(investigation_id:str,request:LiteratureEvidenceReque
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     return {"created":created,"evidence_link_id":link.id,"investigation_id":link.investigation_id,"scientific_passage_id":link.scientific_passage_id,"stance":link.stance,"weight":link.weight,"canonical_evidence":True,"evidence_kind":"scientific_passage"}
+
+@router.post("/investigations/{investigation_id}/literature-graph/project")
+def project_literature_into_graph(investigation_id:str,db:DB)->dict:
+    try:return project_investigation_literature_graph(db,investigation_id)
+    except KeyError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
 
 @router.get("/investigations/{investigation_id}/literature-evidence")
 def investigation_literature_evidence(investigation_id:str,db:DB)->list[dict]:
