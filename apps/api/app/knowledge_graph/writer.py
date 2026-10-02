@@ -70,6 +70,16 @@ def governed_entity(
     return entity
 
 
+def _merge_provenance(existing: dict, incoming: dict) -> dict:
+    merged = {**existing, **incoming}
+    for key in set(existing) | set(incoming):
+        left = existing.get(key)
+        right = incoming.get(key)
+        if key.endswith("_ids") and isinstance(left, list) and isinstance(right, list):
+            merged[key] = list(dict.fromkeys([*left, *right]))
+    return merged
+
+
 def governed_relationship(
     db: Session,
     *,
@@ -116,9 +126,9 @@ def governed_relationship(
             existing.first_seen = first_seen if existing.first_seen is None else min(existing.first_seen, first_seen)
         if last_seen is not None:
             existing.last_seen = last_seen if existing.last_seen is None else max(existing.last_seen, last_seen)
+        merged_provenance = _merge_provenance(existing.provenance or {}, provenance)
         existing.provenance = {
-            **(existing.provenance or {}),
-            **provenance,
+            **merged_provenance,
             **ontology_provenance,
             "evidence_count": len(existing.evidence_ids),
         }
