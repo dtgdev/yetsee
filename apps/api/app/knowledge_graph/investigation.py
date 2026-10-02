@@ -15,6 +15,7 @@ from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink
 from app.models.investigation import Investigation
 from app.models.observation import Observation
 from app.models.relationship import Relationship
+from app.models.scientific_literature import ScientificPassage, ScientificPublication
 
 
 def _node_id(kind: str, object_id: str) -> str:
@@ -96,6 +97,33 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
     observation_ids.update(
         link.observation_id for link in hypothesis_links if link.observation_id
     )
+    literature_passage_ids = {
+        link.scientific_passage_id
+        for link in investigation_links
+        if link.scientific_passage_id
+    }
+
+    literature_passages: list[ScientificPassage] = []
+    if literature_passage_ids:
+        literature_passages = list(
+            db.scalars(
+                select(ScientificPassage)
+                .where(ScientificPassage.id.in_(literature_passage_ids))
+                .order_by(ScientificPassage.id.asc())
+            )
+        )
+    literature_passage_by_id = {item.id: item for item in literature_passages}
+    literature_publication_ids = sorted({item.publication_id for item in literature_passages})
+    literature_publications: list[ScientificPublication] = []
+    if literature_publication_ids:
+        literature_publications = list(
+            db.scalars(
+                select(ScientificPublication)
+                .where(ScientificPublication.id.in_(literature_publication_ids))
+                .order_by(ScientificPublication.id.asc())
+            )
+        )
+    literature_publication_by_id = {item.id: item for item in literature_publications}
 
     observations: list[Observation] = []
     if observation_ids:
@@ -108,15 +136,20 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
         )
     observation_by_id = {item.id: item for item in observations}
 
-    relationships: list[Relationship] = []
-    if observation_ids:
-        # Relationship evidence is stored as JSON, so use a bounded in-memory
-        # filter to preserve SQLite/Postgres portability in the reference build.
-        relationships = [
-            item
-            for item in db.scalars(select(Relationship).order_by(Relationship.confidence.desc()))
-            if set(item.evidence_ids or []).intersection(observation_ids)
-        ]
+    # Relationship evidence/provenance is stored as JSON, so use a bounded
+    # in-memory filter to preserve SQLite/Postgres portability in the reference build.
+    # Literature-derived graph relationships are scoped by canonical passage IDs
+    # and explicit investigation provenance.
+    all_relationships = list(
+        db.scalars(select(Relationship).order_by(Relationship.confidence.desc()))
+    )
+    scoped_evidence_ids = set(observation_ids) | set(literature_passage_ids)
+    relationships: list[Relationship] = [
+        item
+        for item in all_relationships
+        if set(item.evidence_ids or []).intersection(scoped_evidence_ids)
+        or investigation_id in (item.provenance or {}).get("investigation_ids", [])
+    ]
 
     entity_ids: set[str] = set()
     for relationship in relationships:
@@ -139,8 +172,8 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
             "label": investigation.title,
             "description": investigation.summary,
             "confidence": investigation.confidence,
-            "evidence_count": len(observations),
-            "source_count": len({item.source for item in observations}),
+            "evidence_count": len(observations) + len(literature_passages),
+            "source_count": len({item.source for item in observations}) + len(literature_publications),
             "metadata": {
                 "status": investigation.status,
                 "slug": investigation.slug,
@@ -247,14 +280,18 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
         relationship_count_by_entity[relationship.target_entity_id] += 1
 
     for entity in entities:
-        evidence_ids = sorted(evidence_by_entity[entity.id].intersection(observation_ids))
-        source_count = len(
-            {
-                observation_by_id[evidence_id].source
-                for evidence_id in evidence_ids
-                if evidence_id in observation_by_id
-            }
-        )
+        evidence_ids = sorted(evidence_by_entity[entity.id].intersection(scoped_evidence_ids))
+        observation_sources = {
+            observation_by_id[evidence_id].source
+            for evidence_id in evidence_ids
+            if evidence_id in observation_by_id
+        }
+        publication_sources = {
+            literature_passage_by_id[evidence_id].publication_id
+            for evidence_id in evidence_ids
+            if evidence_id in literature_passage_by_id
+        }
+        source_count = len(observation_sources) + len(publication_sources)
         nodes.append(
             {
                 "id": _node_id("entity", entity.id),
@@ -275,6 +312,8 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
         )
 
         for evidence_id in evidence_ids:
+            if evidence_id not in observation_by_id:
+                continue
             edges.append(
                 {
                     "id": f"observation-entity:{evidence_id}:{entity.id}",
@@ -287,9 +326,33 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
                 }
             )
 
+        if entity.kind == "publication":
+            publication_id = (entity.attributes or {}).get("publication_id")
+            publication_passage_ids = sorted(
+                passage.id
+                for passage in literature_passages
+                if passage.publication_id == publication_id
+            )
+            if publication_passage_ids:
+                edges.append(
+                    {
+                        "id": f"investigation-literature:{entity.id}",
+                        "source": inv_node,
+                        "target": _node_id("entity", entity.id),
+                        "kind": "HAS_LITERATURE",
+                        "confidence": 1.0,
+                        "evidence_ids": publication_passage_ids,
+                        "metadata": {
+                            "publication_id": publication_id,
+                            "canonical_evidence_kind": "scientific_passage",
+                            "derived_projection": True,
+                        },
+                    }
+                )
+
     for relationship in relationships:
-        relevant_evidence = sorted(set(relationship.evidence_ids or []).intersection(observation_ids))
-        if not relevant_evidence:
+        relevant_evidence = sorted(set(relationship.evidence_ids or []).intersection(scoped_evidence_ids))
+        if not relevant_evidence and investigation_id not in (relationship.provenance or {}).get("investigation_ids", []):
             continue
         edges.append(
             {
@@ -323,6 +386,13 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
     possible_edges = len(nodes) * (len(nodes) - 1) / 2
     density = (len(edges) / possible_edges) if possible_edges else 0.0
     sources = sorted({item.source for item in observations})
+    literature_source_labels = sorted(
+        {
+            f"PubMed {publication.pmid}" if publication.pmid else publication.title
+            for publication in literature_publications
+        }
+    )
+    all_source_labels = sorted(set([*sources, *literature_source_labels]))
 
     projection = {
         "investigation": {
@@ -337,9 +407,11 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
             "edges": len(edges),
             "entities": len(entities),
             "observations": len(observations),
+            "literature_passages": len(literature_passages),
+            "literature_publications": len(literature_publications),
             "hypotheses": len(hypotheses),
-            "independent_sources": len(sources),
-            "sources": sources,
+            "independent_sources": len(all_source_labels),
+            "sources": all_source_labels,
             "connected_components": components,
             "density": round(density, 6),
             "relationship_types": dict(
