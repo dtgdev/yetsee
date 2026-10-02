@@ -120,6 +120,7 @@ CORE_RELATIONSHIP_TYPES: tuple[RelationshipTypeSpec, ...] = (
 DOMAIN_RELATIONSHIP_TYPES: dict[str, tuple[RelationshipTypeSpec, ...]] = {
     "science": (
         RelationshipTypeSpec("PUBLICATION_REPORTS_STUDY", "science", ("publication",), ("study", "clinical_trial"), "Publication reports results from a study or trial."),
+        RelationshipTypeSpec("PUBLICATION_CONTAINS_PASSAGE", "science", ("publication",), ("source",), "Publication contains or supplies a canonical source passage represented outside the graph."),
         RelationshipTypeSpec("STUDY_REGISTERED_AS_TRIAL", "science", ("study",), ("clinical_trial",), "Study is registered as the specified clinical trial."),
         RelationshipTypeSpec("STUDY_HAS_POPULATION", "science", ("study", "clinical_trial"), ("population", "cohort"), "Study includes the specified population or cohort."),
         RelationshipTypeSpec("STUDY_USES_INTERVENTION", "science", ("study", "clinical_trial"), ("intervention", "drug"), "Study evaluates or uses an intervention."),
