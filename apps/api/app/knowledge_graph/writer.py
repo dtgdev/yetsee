@@ -37,9 +37,14 @@ def governed_entity(
                 f"Ontology kind mismatch for {canonical_key}: existing={existing.kind}, requested={kind}"
             )
         existing.aliases = list(dict.fromkeys([*existing.aliases, *aliases]))
+        merged_attributes = {**(existing.attributes or {}), **(attributes or {})}
+        for key in set(existing.attributes or {}) | set(attributes or {}):
+            left = (existing.attributes or {}).get(key)
+            right = (attributes or {}).get(key)
+            if key.endswith("_ids") and isinstance(left, list) and isinstance(right, list):
+                merged_attributes[key] = list(dict.fromkeys([*left, *right]))
         existing.attributes = {
-            **(existing.attributes or {}),
-            **(attributes or {}),
+            **merged_attributes,
             "ontology": {
                 "version": ONTOLOGY_VERSION,
                 "domain": spec.domain,
