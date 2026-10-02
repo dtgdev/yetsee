@@ -115,6 +115,7 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
                 provenance={
                     "method": "scientific-literature-graph-projection-v1",
                     "investigation_id": investigation_id,
+                    "investigation_ids": [investigation_id],
                     "publication_id": publication.id,
                     "passage_id": passage.id,
                     "canonical_evidence_kind": "scientific_passage",
@@ -150,6 +151,7 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
                 provenance={
                     "method": "explicit-clinical-trial-id",
                     "investigation_id": investigation_id,
+                    "investigation_ids": [investigation_id],
                     "publication_id": publication.id,
                     "trial_id": trial_id,
                     "canonical_evidence_kind": "scientific_passage",
@@ -185,6 +187,7 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
                     provenance={
                         "method": "deterministic-scientific-context-v1",
                         "investigation_id": investigation_id,
+                    "investigation_ids": [investigation_id],
                         "publication_id": publication.id,
                         "trial_id": trial_id,
                         "context_key": population_key,
@@ -214,6 +217,7 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
                     provenance={
                         "method": "deterministic-intervention-mention-v1",
                         "investigation_id": investigation_id,
+                    "investigation_ids": [investigation_id],
                         "publication_id": publication.id,
                         "trial_id": trial_id,
                         "canonical_evidence_kind": "scientific_passage",
@@ -251,6 +255,7 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
                     provenance={
                         "method": "deterministic-scientific-context-v1",
                         "investigation_id": investigation_id,
+                    "investigation_ids": [investigation_id],
                         "publication_id": publication.id,
                         "trial_id": trial_id,
                         "context_key": assay_key,
@@ -262,6 +267,7 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
     db.commit()
     return {
         "investigation_id": investigation_id,
+                    "investigation_ids": [investigation_id],
         "publication_count": len(grouped),
         "publication_nodes": publication_nodes,
         "passage_nodes": passage_nodes,
