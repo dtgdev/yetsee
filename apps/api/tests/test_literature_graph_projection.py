@@ -90,7 +90,7 @@ def test_literature_projection_creates_publication_trial_passage_and_context_nod
         assert result["publication_nodes"] == 1
         assert result["trial_nodes"] == 1
         assert result["passage_nodes"] == 1
-        assert result["graph_is_derived_projection"] if "graph_is_derived_projection" in result else True
+        assert result["policy"]["graph_is_derived_projection"] is True
         assert result["policy"]["canonical_literature_remains_in_scientific_tables"] is True
         assert result["policy"]["passage_text_not_duplicated_into_graph"] is True
 
@@ -103,6 +103,10 @@ def test_literature_projection_creates_publication_trial_passage_and_context_nod
         assert "STUDY_HAS_POPULATION" in relations
         assert "STUDY_USES_INTERVENTION" in relations
         assert "STUDY_USES_ASSAY" in relations
+
+        projected_edges = list(db.scalars(select(Relationship)))
+        assert all(investigation.id in edge.provenance.get("investigation_ids", []) for edge in projected_edges)
+        assert all(edge.provenance.get("ontology", {}).get("governed") is True for edge in projected_edges)
 
         publication_node = db.scalar(select(Entity).where(Entity.kind == "publication"))
         assert publication_node is not None
