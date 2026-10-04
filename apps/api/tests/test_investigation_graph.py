@@ -158,3 +158,104 @@ def test_investigation_graph_includes_projected_literature_nodes_and_edges():
     assert publication_nodes[0]["evidence_count"] == 1
     assert publication_nodes[0]["source_count"] == 1
     assert graph["derived"] is True
+
+
+def test_investigation_graph_consolidates_duplicate_scientific_relationships():
+    db = make_session()
+    investigation = Investigation(
+        title="Semantic consolidation",
+        slug="semantic-consolidation",
+        status="collecting",
+        confidence=0.0,
+        attributes={},
+    )
+    db.add(investigation)
+    db.flush()
+
+    publication = ScientificPublication(
+        source_system="pubmed",
+        source_id="36849494",
+        pmid="36849494",
+        doi="10.1000/consolidation",
+        title="Mechanism publication",
+        journal="Test Journal",
+        publication_date=None,
+        authors_json=[],
+        metadata_json={},
+        source_url="https://pubmed.ncbi.nlm.nih.gov/36849494/",
+        retrieval_ref="pubmed:pmid:36849494",
+        content_hash="pub-semantic-consolidation",
+    )
+    db.add(publication)
+    db.flush()
+    passage = ScientificPassage(
+        publication_id=publication.id,
+        section="Abstract",
+        locator="abstract:1",
+        text="MET amplification is reported as a mechanism of acquired osimertinib resistance.",
+        content_hash="passage-semantic-consolidation",
+        provenance_json={"canonical_source": True},
+    )
+    db.add(passage)
+    db.flush()
+    db.add(EvidenceLink(
+        investigation_id=investigation.id,
+        scientific_passage_id=passage.id,
+        stance="supporting",
+        weight=1.0,
+    ))
+    db.flush()
+
+    subject = Entity(
+        kind="genomic_alteration",
+        canonical_name="MET amplification",
+        canonical_key="genomic-alteration:met-amplification",
+        aliases=[],
+        attributes={},
+    )
+    target = Entity(
+        kind="drug_resistance",
+        canonical_name="Acquired osimertinib resistance",
+        canonical_key="drug-resistance:osimertinib-acquired",
+        aliases=[],
+        attributes={},
+    )
+    db.add_all([subject, target])
+    db.flush()
+
+    db.add_all([
+        Relationship(
+            source_entity_id=subject.id,
+            target_entity_id=target.id,
+            kind="reported_as_resistance_mechanism",
+            confidence=0.98,
+            evidence_ids=[passage.id],
+            provenance={"investigation_ids":[investigation.id],"claim_ids":["claim-a"]},
+        ),
+        Relationship(
+            source_entity_id=subject.id,
+            target_entity_id=target.id,
+            kind="contributes_to",
+            confidence=1.0,
+            evidence_ids=[passage.id],
+            provenance={"investigation_ids":[investigation.id],"claim_ids":["claim-b"]},
+        ),
+    ])
+    db.commit()
+
+    graph = investigation_graph(db, investigation.id)
+    matching = [
+        edge for edge in graph["edges"]
+        if edge["source"] == f"entity:{subject.id}" and edge["target"] == f"entity:{target.id}"
+    ]
+
+    assert len(matching) == 1
+    edge = matching[0]
+    assert edge["kind"] == "contributes_to"
+    assert edge["metadata"]["semantic_consolidation"] is True
+    assert set(edge["metadata"]["underlying_relationship_kinds"]) == {
+        "reported_as_resistance_mechanism",
+        "contributes_to",
+    }
+    assert len(edge["metadata"]["raw_relationships"]) == 2
+    assert edge["evidence_ids"] == [passage.id]
