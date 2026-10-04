@@ -177,8 +177,8 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
       <div className="structureScientificHeader">
         <div>
           <span>CANONICAL INVESTIGATION STRUCTURE</span>
-          <h2>{inv.title} structural map</h2>
-          <p>Explore the evidence-derived topology before interpreting what it means. Structure is descriptive; reasoning remains a separate scientific lens.</p>
+          <h2>{inv.title} connections</h2>
+          <p>See the important studies, findings, and evidence connections first. Open Scientific view when you want graph metrics and deeper technical detail.</p>
         </div>
         <div className="structureTrust">
           <StatusPill tone="green">derived</StatusPill>
@@ -187,11 +187,11 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
           <span className="structureGenerated">generated {fmt(investigationGraph.generated_at)}</span>
         </div>
       </div>
-      <ResearchPanel title="Investigation Graph" subtitle="Scientific view collapses raw observations; Full evidence reveals every evidence node. Select any node to inspect centrality, communities, provenance and linked evidence.">
+      <ResearchPanel title="Investigation connections" subtitle="Simple view is the default. Select any item to see why it matters and what evidence supports it.">
         <GalileoGraph graph={investigationGraph}/>
       </ResearchPanel>
       <div className="researchTwoCol">
-        <ResearchPanel title="Graph health" subtitle="Structural measurements are scoped to this investigation, not the global knowledge graph.">
+        <ResearchPanel title="Connection summary" subtitle="A compact summary of this investigation's evidence-linked structure.">
           <div className="graphHealthGrid"><div><span>Nodes</span><strong>{investigationGraph.metrics.nodes}</strong></div><div><span>Edges</span><strong>{investigationGraph.metrics.edges}</strong></div><div><span>Communities</span><strong>{graphCommunities.length}</strong></div><div><span>Bridge concepts</span><strong>{graphBridges.length}</strong></div><div><span>Sources</span><strong>{canonicalSourceCount}</strong></div><div><span>Density</span><strong>{(graphAnalytics.density??investigationGraph.metrics.density).toFixed(3)}</strong></div></div>
         </ResearchPanel>
         <ResearchPanel title="Structural interpretation" subtitle="Graph Reasoner interprets this same projection without rewriting the graph or hypothesis confidence.">
@@ -199,7 +199,7 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
         </ResearchPanel>
       </div>
       <ResearchPanel title="Scientific cautions" subtitle="Graph metrics are structural evidence, not causal proof.">
-        <div className="structureCautions"><div><i>01</i><div><strong>Centrality is not causality</strong><small>A highly connected concept may be structurally important without causing the observed behavior.</small></div></div><div><i>02</i><div><strong>Communities are neighborhoods</strong><small>Detected communities summarize topology; they are not automatically verified scientific categories.</small></div></div><div><i>03</i><div><strong>Source diversity still matters</strong><small>{canonicalSourceCount} independent source(s) currently support this investigation.</small></div></div></div>
+        <div className="structureCautions"><div><i>01</i><div><strong>Important does not mean causal</strong><small>A highly connected item may be important to the investigation without causing the outcome.</small></div></div><div><i>02</i><div><strong>Groups show related items</strong><small>Detected groups summarize graph structure; they are not automatically proven scientific categories.</small></div></div><div><i>03</i><div><strong>Evidence diversity still matters</strong><small>{canonicalSourceCount} distinct source(s) currently support this investigation. Study independence is assessed separately.</small></div></div></div>
       </ResearchPanel>
     </div>;
   } else if(active==="reasoning"){
