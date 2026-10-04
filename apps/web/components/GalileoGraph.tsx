@@ -104,6 +104,57 @@ const palette: Record<string, string> = {
 
 const communityPalette = ["#dce8fb", "#e6f4ed", "#f4ead9", "#eee8fb", "#e6f1f4", "#f5e8ed"];
 const semanticKinds = new Set(["concept", "entity", "organization", "company", "person", "topic"]);
+const simpleKinds = new Set(["investigation", "hypothesis", "publication", "clinical_trial", "study", "population", "drug", "genomic_alteration", "drug_resistance", "mechanism", "outcome", "company", "product", "technology", "market", "funding_round", "patent", "regulatory_event"]);
+
+const kindLabels: Record<string, string> = {
+  investigation: "Investigation",
+  hypothesis: "Hypothesis",
+  publication: "Publication",
+  clinical_trial: "Clinical trial",
+  study: "Study",
+  population: "Patient group",
+  drug: "Treatment",
+  genomic_alteration: "Genomic finding",
+  drug_resistance: "Resistance outcome",
+  mechanism: "Mechanism",
+  outcome: "Outcome",
+  assay: "Method",
+  source: "Source passage",
+  company: "Company",
+  product: "Product",
+  technology: "Technology",
+  market: "Market",
+  funding_round: "Funding round",
+  patent: "Patent",
+  regulatory_event: "Regulatory event",
+};
+
+const relationshipLabels: Record<string, string> = {
+  HAS_LITERATURE: "supported by publication",
+  PUBLICATION_CONTAINS_PASSAGE: "contains source passage",
+  PUBLICATION_REPORTS_STUDY: "reports results from",
+  STUDY_HAS_POPULATION: "studied in",
+  STUDY_USES_INTERVENTION: "uses treatment",
+  STUDY_USES_ASSAY: "uses method",
+  STUDY_MEASURES_OUTCOME: "measures",
+  reported_as_resistance_mechanism: "reported as resistance mechanism",
+  contributes_to: "may contribute to",
+  MECHANISM_CONTRIBUTES_TO: "may contribute to",
+  SUPPORTS: "supports",
+  CONTRADICTS: "contradicts",
+  CONTEXT_FOR: "provides context for",
+  COMPANY_LAUNCHED_PRODUCT: "launched",
+  COMPANY_RAISED_FUNDING: "raised funding",
+  COMPANY_DEVELOPS_TECHNOLOGY: "develops",
+};
+
+function kindLabel(kind: string) {
+  return kindLabels[kind] ?? kind.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function relationshipLabel(kind: string) {
+  return relationshipLabels[kind] ?? kind.replaceAll("_", " ").toLowerCase();
+}
 
 function color(kind: string) {
   return palette[kind.toLowerCase()] ?? palette.entity;
@@ -150,6 +201,8 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
   const [kind, setKind] = useState("all");
   const [communityFilter, setCommunityFilter] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [viewMode, setViewMode] = useState<"simple" | "scientific">("simple");
+  const [showDetails, setShowDetails] = useState(false);
 
   const analytics = graph.analytics ?? {};
   const communities = analytics.communities ?? [];
@@ -182,19 +235,21 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
       graph.nodes.filter((node) => {
         const q = query.trim().toLowerCase();
         const matchesCommunity = communityFilter === null || communityByNode.get(node.id) === communityFilter;
+        const matchesMode = viewMode === "scientific" || simpleKinds.has(node.kind);
         return (
+          matchesMode &&
           matchesCommunity &&
           (kind === "all" || node.kind === kind) &&
           (!q || node.label.toLowerCase().includes(q) || node.kind.toLowerCase().includes(q))
         );
       }),
-    [graph.nodes, query, kind, communityFilter, communityByNode],
+    [graph.nodes, query, kind, communityFilter, communityByNode, viewMode],
   );
 
   const visibleIds = new Set(visible.map((n) => n.id));
   const edges = graph.edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
   const pos = positions(visible);
-  const kinds = [...new Set(graph.nodes.map((n) => n.kind))].sort();
+  const kinds = [...new Set(graph.nodes.filter((n) => viewMode === "scientific" || simpleKinds.has(n.kind)).map((n) => n.kind))].sort();
   const relatedEdges = graph.edges.filter((e) => e.source === selectedId || e.target === selectedId);
   const evidenceIds = [...new Set(relatedEdges.flatMap((e) => e.evidence_ids))];
   const selectedCommunity = selected ? communityByNode.get(selected.id) : undefined;
@@ -204,14 +259,18 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
     <div className="galileoWorkbench scientificStructureLens">
       <section className="galileoCanvas">
         <div className="galileoToolbar">
+          <div className="galileoViewToggle" aria-label="Graph detail level">
+            <button className={viewMode === "simple" ? "active" : ""} onClick={() => { setViewMode("simple"); setKind("all"); setCommunityFilter(null); }}>Simple view</button>
+            <button className={viewMode === "scientific" ? "active" : ""} onClick={() => setViewMode("scientific")}>Scientific view</button>
+          </div>
           <div className="galileoSearch">
             <span>⌕</span>
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search concepts, evidence, sources…" />
           </div>
           <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Filter graph by node type">
-            <option value="all">All node types</option>
+            <option value="all">All types</option>
             {kinds.map((k) => (
-              <option key={k} value={k}>{k}</option>
+              <option key={k} value={k}>{kindLabel(k)}</option>
             ))}
           </select>
           <div className="galileoZoom">
@@ -221,13 +280,21 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
           </div>
         </div>
 
-        <div className="structureAnalyticsStrip">
-          <div><span>Semantic concepts</span><strong>{semanticCentral.length}</strong></div>
-          <div><span>Communities</span><strong>{communities.length}</strong></div>
-          <div><span>Bridge concepts</span><strong>{bridgeNodes.length}</strong></div>
-          <div><span>Independent sources</span><strong>{graph.metrics.independent_sources}</strong></div>
-          <div><span>Density</span><strong>{(analytics.density ?? graph.metrics.density).toFixed(3)}</strong></div>
-        </div>
+        {viewMode === "simple" ? (
+          <div className="simpleGraphSummary">
+            <div><span>Key items</span><strong>{visible.length}</strong></div>
+            <div><span>Evidence sources</span><strong>{graph.metrics.independent_sources}</strong></div>
+            <div><span>Connections</span><strong>{edges.length}</strong></div>
+          </div>
+        ) : (
+          <div className="structureAnalyticsStrip">
+            <div><span>Semantic concepts</span><strong>{semanticCentral.length}</strong></div>
+            <div><span>Communities</span><strong>{communities.length}</strong></div>
+            <div><span>Bridge concepts</span><strong>{bridgeNodes.length}</strong></div>
+            <div><span>Distinct sources</span><strong>{graph.metrics.independent_sources}</strong></div>
+            <div><span>Density</span><strong>{(analytics.density ?? graph.metrics.density).toFixed(3)}</strong></div>
+          </div>
+        )}
 
         <div className="galileoGraphStage">
           {!visible.length ? (
@@ -247,7 +314,7 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
                 return (
                   <g key={edge.id} className={active ? "activeEdge" : ""}>
                     <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
-                    <title>{edge.kind} · {Math.round(edge.confidence * 100)}% · {edge.evidence_ids.length} evidence</title>
+                    <title>{relationshipLabel(edge.kind)} · {edge.evidence_ids.length} evidence item(s)</title>
                   </g>
                 );
               })}
@@ -277,7 +344,7 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
                     <circle cx={p.x} cy={p.y} r={radius} fill={color(node.kind)} />
                     {bridge && <circle cx={p.x} cy={p.y} r={radius + 0.8} className="bridgeRing" />}
                     <text x={p.x} y={p.y + radius + 4.3} textAnchor="middle">{short(node.label)}</text>
-                    <title>{node.label} · {node.kind} · PageRank {scorePercent(pagerank[node.id])} · {node.evidence_count} evidence</title>
+                    <title>{node.label} · {kindLabel(node.kind)} · {node.evidence_count} evidence item(s)</title>
                   </g>
                 );
               })}
@@ -286,11 +353,15 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
         </div>
 
         <div className="galileoLegend">
-          {kinds.map((k) => <span key={k}><i style={{ background: color(k) }} />{k}</span>)}
-          {bridgeNodes.length > 0 && <span><i className="bridgeLegend" />bridge concept</span>}
+          {kinds.map((k) => <span key={k}><i style={{ background: color(k) }} />{kindLabel(k)}</span>)}
+          {viewMode === "scientific" && bridgeNodes.length > 0 && <span><i className="bridgeLegend" />bridge concept</span>}
+        </div>
+        <div className="galileoViewNote">
+          <strong>{viewMode === "simple" ? "Simple view" : "Scientific view"}</strong>
+          <span>{viewMode === "simple" ? "Shows the main ideas, studies and evidence connections. Switch to Scientific view for graph metrics and technical detail." : "Shows the complete evidence-derived graph, structural metrics and provenance."}</span>
         </div>
 
-        <div className="scientificGraphPanels">
+        {viewMode === "scientific" && <div className="scientificGraphPanels">
           <section>
             <div className="graphPanelHeading"><span>Central concepts</span><small>PageRank · semantic nodes only</small></div>
             <div className="rankedConceptList">
@@ -330,7 +401,7 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
               {!bridgeNodes.length && <p className="emptyText">No evidence-backed semantic bridge concepts detected.</p>}
             </div>
           </section>
-        </div>
+        </div>}
       </section>
 
       <aside className="galileoInspector scientificNodeInspector">
@@ -339,7 +410,7 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
             <div className="inspectorEyebrow">Scientific node inspector</div>
             <div className="inspectorTitle">
               <i style={{ background: color(selected.kind) }} />
-              <div><h3>{selected.label}</h3><span>{selected.kind}</span></div>
+              <div><h3>{selected.label}</h3><span>{kindLabel(selected.kind)}</span></div>
             </div>
             {selected.description && <p className="inspectorDescription">{selected.description}</p>}
 
@@ -350,20 +421,22 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
             </div>
 
             <dl className="inspectorStats analyticsStats">
-              <div><dt>PageRank</dt><dd>{scorePercent(pagerank[selected.id])}</dd></div>
-              <div><dt>Betweenness</dt><dd>{scorePercent(betweenness[selected.id])}</dd></div>
-              <div><dt>Closeness</dt><dd>{scorePercent(closeness[selected.id])}</dd></div>
-              <div><dt>Degree centrality</dt><dd>{scorePercent(standardDegree[selected.id])}</dd></div>
               <div><dt>Evidence</dt><dd>{selected.evidence_count}</dd></div>
               <div><dt>Sources</dt><dd>{selected.source_count}</dd></div>
+              {viewMode === "scientific" && <><div><dt>PageRank</dt><dd>{scorePercent(pagerank[selected.id])}</dd></div>
+              <div><dt>Betweenness</dt><dd>{scorePercent(betweenness[selected.id])}</dd></div>
+              <div><dt>Closeness</dt><dd>{scorePercent(closeness[selected.id])}</dd></div>
+              <div><dt>Degree centrality</dt><dd>{scorePercent(standardDegree[selected.id])}</dd></div></>}
             </dl>
 
             <section className="inspectorSection">
               <span>Why this node matters</span>
               <p className="scientificInterpretation">
-                {isBridge
-                  ? `${selected.label} links ${isBridge.communities_connected} structural neighborhoods and carries ${scorePercent(isBridge.betweenness)} betweenness centrality.`
-                  : `${selected.label} has ${scorePercent(pagerank[selected.id])} PageRank within this investigation-scoped projection and is backed by ${selected.evidence_count} evidence item(s).`}
+                {viewMode === "simple"
+                  ? `${selected.label} is connected to ${relatedEdges.length} item(s) in this investigation and is backed by ${selected.evidence_count} evidence item(s) from ${selected.source_count} source(s).`
+                  : isBridge
+                    ? `${selected.label} links ${isBridge.communities_connected} structural neighborhoods and carries ${scorePercent(isBridge.betweenness)} betweenness centrality.`
+                    : `${selected.label} has ${scorePercent(pagerank[selected.id])} PageRank within this investigation-scoped projection and is backed by ${selected.evidence_count} evidence item(s).`}
               </p>
             </section>
 
@@ -374,8 +447,8 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
                 const other = graph.nodes.find((n) => n.id === otherId);
                 return (
                   <button key={edge.id} onClick={() => other && setSelectedId(other.id)}>
-                    <div><strong>{edge.kind.replaceAll("_", " ")}</strong><small>{other?.label ?? otherId}</small></div>
-                    <em>{Math.round(edge.confidence * 100)}%</em>
+                    <div><strong>{relationshipLabel(edge.kind)}</strong><small>{other?.label ?? otherId}</small></div>
+                    {viewMode === "scientific" && <em>{Math.round(edge.confidence * 100)}%</em>}
                   </button>
                 );
               }) : <p>No relationships in this projection.</p>}
@@ -384,13 +457,16 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
             <section className="inspectorSection">
               <span>Evidence path</span>
               <div className="evidencePath">
-                <b>{selected.kind}</b><i>→</i><b>{evidenceIds.length} evidence</b><i>→</i><b>{selected.source_count} sources</b>
+                <b>{kindLabel(selected.kind)}</b><i>→</i><b>{evidenceIds.length} evidence</b><i>→</i><b>{selected.source_count} sources</b>
               </div>
             </section>
 
             <section className="inspectorSection">
-              <span>Scientific provenance</span>
-              <pre>{JSON.stringify(selected.metadata, null, 2)}</pre>
+              <button className="detailsToggle" onClick={() => setShowDetails((value) => !value)}>
+                <div><strong>{showDetails ? "Hide technical details" : "Show technical details"}</strong><small>Provenance, ontology metadata and graph identifiers</small></div>
+                <em>{showDetails ? "−" : "+"}</em>
+              </button>
+              {showDetails && <pre>{JSON.stringify(selected.metadata, null, 2)}</pre>}
             </section>
           </>
         ) : (
