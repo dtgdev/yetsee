@@ -30,6 +30,81 @@ def _stance_edge(stance: str) -> str:
     }.get(stance, "CONTEXT_FOR")
 
 
+_SEMANTIC_RELATIONSHIP_FAMILIES: dict[str, str] = {
+    "reported_as_resistance_mechanism": "resistance_mechanism",
+    "contributes_to": "resistance_mechanism",
+    "MECHANISM_CONTRIBUTES_TO": "resistance_mechanism",
+}
+
+
+def _consolidate_semantic_edges(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse duplicate-looking scientific assertions in the derived projection.
+
+    Canonical relationship rows are never changed. Consolidation only affects the
+    investigation projection and preserves every underlying relationship and its
+    provenance in metadata.
+    """
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    passthrough: list[dict[str, Any]] = []
+
+    for edge in edges:
+        family = _SEMANTIC_RELATIONSHIP_FAMILIES.get(edge["kind"])
+        if family is None:
+            passthrough.append(edge)
+            continue
+        grouped[(edge["source"], edge["target"], family)].append(edge)
+
+    consolidated: list[dict[str, Any]] = []
+    for (source, target, family), members in grouped.items():
+        if len(members) == 1:
+            consolidated.append(members[0])
+            continue
+
+        kinds = [member["kind"] for member in members]
+        if "contributes_to" in kinds:
+            display_kind = "contributes_to"
+        elif "MECHANISM_CONTRIBUTES_TO" in kinds:
+            display_kind = "MECHANISM_CONTRIBUTES_TO"
+        else:
+            display_kind = kinds[0]
+
+        evidence_ids = sorted({
+            evidence_id
+            for member in members
+            for evidence_id in member.get("evidence_ids", [])
+        })
+        raw_relationships = [
+            {
+                "id": member["id"],
+                "kind": member["kind"],
+                "confidence": member.get("confidence", 1.0),
+                "evidence_ids": member.get("evidence_ids", []),
+                "metadata": member.get("metadata", {}),
+            }
+            for member in members
+        ]
+        consolidated.append(
+            {
+                "id": "semantic:" + ":".join([family, source, target]),
+                "source": source,
+                "target": target,
+                "kind": display_kind,
+                "confidence": max(member.get("confidence", 1.0) for member in members),
+                "evidence_ids": evidence_ids,
+                "metadata": {
+                    "semantic_consolidation": True,
+                    "semantic_family": family,
+                    "underlying_relationship_ids": [member["id"] for member in members],
+                    "underlying_relationship_kinds": kinds,
+                    "raw_relationships": raw_relationships,
+                    "derived_projection": True,
+                },
+            }
+        )
+
+    return passthrough + consolidated
+
+
 def _connected_components(node_ids: list[str], edges: list[dict[str, Any]]) -> int:
     if not node_ids:
         return 0
@@ -369,6 +444,8 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
                 },
             }
         )
+
+    edges = _consolidate_semantic_edges(edges)
 
     # Degree is deliberately calculated on the investigation projection, not on
     # the global graph. This makes the metric scientifically scoped and replayable.
