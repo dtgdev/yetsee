@@ -10,6 +10,8 @@ def test_core_ontology_is_domain_neutral():
     names = {item["name"] for item in manifest["entity_types"]}
     assert {"entity", "actor", "organization", "product", "technology", "market", "event", "claim", "assessment", "opportunity", "risk"} <= names
     assert manifest["policy"]["domain_neutral_core"] is True
+    assert validate_relationship_type("EVENT_INVOLVES")
+    assert validate_relationship_type("EVENT_PRECEDES")
 
 
 def test_science_pack_does_not_own_core_claim_or_source_types():
