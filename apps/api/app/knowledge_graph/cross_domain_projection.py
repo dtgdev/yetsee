@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.knowledge_graph.writer import governed_entity, governed_relationship
+from app.knowledge_graph.domain_assertion_extraction import extract_graph_assertions
 from app.models.evidence import EvidenceLink
 from app.models.investigation import Investigation
 from app.models.observation import Observation
@@ -40,10 +41,12 @@ def _entity_from_payload(db: Session, payload: dict):
 
 def _assertions(observation: Observation) -> list[dict]:
     payload = observation.payload or {}
-    assertions = payload.get("graph_assertions") or []
-    if not isinstance(assertions, list):
-        raise ValueError("Observation graph_assertions must be a list")
-    return [item for item in assertions if isinstance(item, dict)]
+    explicit = payload.get("graph_assertions")
+    if explicit is not None:
+        if not isinstance(explicit, list):
+            raise ValueError("Observation graph_assertions must be a list")
+        return [item for item in explicit if isinstance(item, dict)]
+    return extract_graph_assertions(observation)
 
 
 def project_cross_domain_observation_graph(db: Session, investigation_id: str) -> dict:
@@ -142,6 +145,8 @@ def project_cross_domain_observation_graph(db: Session, investigation_id: str) -
             "observations_remain_canonical_evidence": True,
             "graph_is_derived_projection": True,
             "free_text_inference_disabled": True,
+            "domain_aware_extraction_enabled": True,
+            "explicit_graph_assertions_take_precedence": True,
             "ontology_validation_required": True,
             "relationships_require_provenance": True,
             "projection": "cross-domain-observation-graph-projection-v1",
