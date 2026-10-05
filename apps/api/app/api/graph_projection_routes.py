@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import DB
 from app.knowledge_graph.projection import evidence_scoped_investigation_graph
+from app.knowledge_graph.cross_domain_projection import project_cross_domain_observation_graph
 
 
 router = APIRouter()
@@ -26,3 +27,16 @@ def project_investigation_graph(
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Investigation not found") from exc
+
+
+@router.post("/investigations/{investigation_id}/graph/project-cross-domain")
+def project_cross_domain_graph(
+    investigation_id: str,
+    db: DB,
+):
+    try:
+        return project_cross_domain_observation_graph(db, investigation_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Investigation not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
