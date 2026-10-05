@@ -115,6 +115,8 @@ CORE_RELATIONSHIP_TYPES: tuple[RelationshipTypeSpec, ...] = (
     RelationshipTypeSpec("MEASURED_BY", "core", ("entity",), ("metric",), "Entity or topic is measured by a metric."),
     RelationshipTypeSpec("MENTIONS", "core", ("entity",), ("entity",), "Evidence-backed mention of another entity."),
     RelationshipTypeSpec("SEMANTICALLY_RELATED_TO", "core", ("entity",), ("entity",), "Deterministic semantic similarity relationship.", directed=False),
+    RelationshipTypeSpec("EVENT_INVOLVES", "core", ("event",), ("entity",), "Time-bounded event involves an entity in a provenance-recorded role."),
+    RelationshipTypeSpec("EVENT_PRECEDES", "core", ("event",), ("event",), "Derived temporal ordering between events; ordering does not imply causality."),
 )
 
 DOMAIN_RELATIONSHIP_TYPES: dict[str, tuple[RelationshipTypeSpec, ...]] = {
