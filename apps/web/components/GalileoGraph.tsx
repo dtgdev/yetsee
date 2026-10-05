@@ -104,7 +104,7 @@ const palette: Record<string, string> = {
 
 const communityPalette = ["#dce8fb", "#e6f4ed", "#f4ead9", "#eee8fb", "#e6f1f4", "#f5e8ed"];
 const semanticKinds = new Set(["concept", "entity", "organization", "company", "person", "topic"]);
-const simpleKinds = new Set(["investigation", "hypothesis", "publication", "clinical_trial", "study", "population", "drug", "genomic_alteration", "drug_resistance", "mechanism", "outcome", "company", "product", "technology", "market", "funding_round", "patent", "regulatory_event"]);
+const simpleKinds = new Set(["investigation", "hypothesis", "publication", "clinical_trial", "study", "population", "drug", "genomic_alteration", "drug_resistance", "mechanism", "outcome", "event", "company", "product", "technology", "market", "funding_round", "patent", "regulatory_event"]);
 
 const kindLabels: Record<string, string> = {
   investigation: "Investigation",
@@ -126,6 +126,7 @@ const kindLabels: Record<string, string> = {
   market: "Market",
   funding_round: "Funding round",
   patent: "Patent",
+  event: "Event",
   regulatory_event: "Regulatory event",
 };
 
@@ -140,6 +141,8 @@ const relationshipLabels: Record<string, string> = {
   reported_as_resistance_mechanism: "reported as resistance mechanism",
   contributes_to: "may contribute to",
   MECHANISM_CONTRIBUTES_TO: "may contribute to",
+  EVENT_INVOLVES: "involves",
+  EVENT_PRECEDES: "happened before",
   SUPPORTS: "supports",
   CONTRADICTS: "contradicts",
   CONTEXT_FOR: "provides context for",
