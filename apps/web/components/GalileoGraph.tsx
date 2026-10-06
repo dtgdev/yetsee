@@ -55,6 +55,16 @@ type GraphEdge = {
   metadata: Record<string, any>;
 };
 
+type EvidencePathResult = {
+  result_count: number;
+  paths: {
+    hop_count: number;
+    nodes: { id: string; kind: string; label: string }[];
+    relationships: { id: string; kind: string; direction: string; evidence_ids: string[] }[];
+    evidence: { evidence_id: string; kind: string; source?: string; source_ref?: string; publication_title?: string; pmid?: string }[];
+  }[];
+};
+
 type GraphData = {
   investigation: { id: string; title: string; status: string };
   nodes: GraphNode[];
@@ -210,6 +220,9 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
   const [zoom, setZoom] = useState(1);
   const [viewMode, setViewMode] = useState<"simple" | "scientific">("simple");
   const [showDetails, setShowDetails] = useState(false);
+  const [pathResult, setPathResult] = useState<EvidencePathResult | null>(null);
+  const [pathLoading, setPathLoading] = useState(false);
+  const [pathError, setPathError] = useState("");
 
   const analytics = graph.analytics ?? {};
   const communities = analytics.communities ?? [];
@@ -261,6 +274,27 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
   const evidenceIds = [...new Set(relatedEdges.flatMap((e) => e.evidence_ids))];
   const selectedCommunity = selected ? communityByNode.get(selected.id) : undefined;
   const isBridge = selected ? bridgeNodes.find((item) => item.node_id === selected.id) : undefined;
+
+  async function runEvidencePath(queryType: "why" | "before") {
+    if (!selected) return;
+    setPathLoading(true);
+    setPathError("");
+    setPathResult(null);
+    try {
+      const response = await fetch(`/api/investigations/${graph.investigation.id}/graph/query`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query_type: queryType, node_ref: selected.id, limit: 5 }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.detail ?? "Could not load evidence path");
+      setPathResult(body);
+    } catch (error) {
+      setPathError(error instanceof Error ? error.message : "Could not load evidence path");
+    } finally {
+      setPathLoading(false);
+    }
+  }
 
   return (
     <div className="galileoWorkbench scientificStructureLens">
@@ -466,6 +500,38 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
               <div className="evidencePath">
                 <b>{kindLabel(selected.kind)}</b><i>→</i><b>{evidenceIds.length} evidence</b><i>→</i><b>{selected.source_count} sources</b>
               </div>
+              <div className="evidencePathActions">
+                <button onClick={() => runEvidencePath("why")} disabled={pathLoading}>
+                  {pathLoading ? "Checking…" : "Why do we believe this?"}
+                </button>
+                {selected.kind === "event" && (
+                  <button onClick={() => runEvidencePath("before")} disabled={pathLoading}>What happened before?</button>
+                )}
+              </div>
+              {pathError && <p className="evidencePathError">{pathError}</p>}
+              {pathResult && (
+                <div className="evidencePathResults">
+                  {pathResult.result_count === 0 ? (
+                    <p>No evidence path was found in this investigation.</p>
+                  ) : pathResult.paths.map((path, index) => (
+                    <article key={index}>
+                      <div className="evidencePathChain">
+                        {path.nodes.map((node, nodeIndex) => (
+                          <span key={node.id}>
+                            {nodeIndex > 0 && <i>→</i>}
+                            <b>{node.label}</b>
+                          </span>
+                        ))}
+                      </div>
+                      <small>
+                        {path.evidence.length
+                          ? path.evidence.map((item) => item.publication_title || item.source_ref || item.source || item.kind).join(" · ")
+                          : "Derived graph path; inspect scientific details for provenance."}
+                      </small>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="inspectorSection">
