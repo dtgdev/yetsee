@@ -12,6 +12,7 @@ def test_core_ontology_is_domain_neutral():
     assert manifest["policy"]["domain_neutral_core"] is True
     assert validate_relationship_type("EVENT_INVOLVES")
     assert validate_relationship_type("EVENT_PRECEDES")
+    assert validate_relationship_type("ASSESSMENT_CONCERNS")
 
 
 def test_science_pack_does_not_own_core_claim_or_source_types():
