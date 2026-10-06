@@ -108,6 +108,7 @@ CORE_RELATIONSHIP_TYPES: tuple[RelationshipTypeSpec, ...] = (
     RelationshipTypeSpec("SUPPORTED_BY", "core", ("claim",), ("source", "entity"), "Links a derived claim to supporting evidence or source."),
     RelationshipTypeSpec("CONTRADICTED_BY", "core", ("claim",), ("source", "entity"), "Links a derived claim to contradicting evidence or source."),
     RelationshipTypeSpec("DERIVED_FROM", "core", ("claim", "assessment", "opportunity", "risk"), ("source", "entity"), "Records derivation provenance."),
+    RelationshipTypeSpec("ASSESSMENT_CONCERNS", "core", ("assessment",), ("entity",), "Derived assessment concerns a graph entity without making the assessment canonical evidence."),
     RelationshipTypeSpec("ABOUT", "core", ("claim", "assessment", "source"), ("entity",), "Connects information to the entity it concerns."),
     RelationshipTypeSpec("PART_OF", "core", ("entity",), ("entity",), "Generic containment or membership relationship."),
     RelationshipTypeSpec("RELATED_TO", "core", ("entity",), ("entity",), "Generic governed fallback relation when a more specific relation is unavailable."),
