@@ -104,7 +104,7 @@ const palette: Record<string, string> = {
 
 const communityPalette = ["#dce8fb", "#e6f4ed", "#f4ead9", "#eee8fb", "#e6f1f4", "#f5e8ed"];
 const semanticKinds = new Set(["concept", "entity", "organization", "company", "person", "topic"]);
-const simpleKinds = new Set(["investigation", "hypothesis", "publication", "clinical_trial", "study", "population", "drug", "genomic_alteration", "drug_resistance", "mechanism", "outcome", "event", "company", "product", "technology", "market", "funding_round", "patent", "regulatory_event"]);
+const simpleKinds = new Set(["investigation", "hypothesis", "publication", "clinical_trial", "study", "population", "drug", "genomic_alteration", "drug_resistance", "mechanism", "outcome", "event", "assessment", "evidence_gap", "company", "product", "technology", "market", "funding_round", "patent", "regulatory_event"]);
 
 const kindLabels: Record<string, string> = {
   investigation: "Investigation",
@@ -128,6 +128,8 @@ const kindLabels: Record<string, string> = {
   patent: "Patent",
   event: "Event",
   regulatory_event: "Regulatory event",
+  assessment: "Evidence assessment",
+  evidence_gap: "Evidence gap",
 };
 
 const relationshipLabels: Record<string, string> = {
@@ -143,6 +145,8 @@ const relationshipLabels: Record<string, string> = {
   MECHANISM_CONTRIBUTES_TO: "may contribute to",
   EVENT_INVOLVES: "involves",
   EVENT_PRECEDES: "happened before",
+  ASSESSMENT_CONCERNS: "assesses",
+  EVIDENCE_GAP_CONCERNS: "needs more evidence about",
   SUPPORTS: "supports",
   CONTRADICTS: "contradicts",
   CONTEXT_FOR: "provides context for",
