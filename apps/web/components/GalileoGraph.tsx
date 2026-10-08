@@ -190,7 +190,7 @@ function scorePercent(value: number | undefined) {
   return `${Math.round((value ?? 0) * 100)}%`;
 }
 
-export default function GalileoGraph({ graph }: { graph: GraphData }) {
+export default function GalileoGraph({ graph, canonicalSourceCount }: { graph: GraphData; canonicalSourceCount?: number }) {
   const [selectedId, setSelectedId] = useState(
     graph.nodes.find((n) => n.kind === "investigation")?.id ?? graph.nodes[0]?.id ?? "",
   );
@@ -219,6 +219,23 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
     return map;
   }, [communities]);
 
+  const displayLabels = useMemo(() => {
+    const counts = new Map<string, number>();
+    const seen = new Map<string, number>();
+    const labels = new Map<string, { label: string; index: number; total: number }>();
+    for (const node of graph.nodes) {
+      const key = `${node.kind}\u0000${node.label.toLowerCase()}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    for (const node of graph.nodes) {
+      const key = `${node.kind}\u0000${node.label.toLowerCase()}`;
+      const index = (seen.get(key) ?? 0) + 1;
+      seen.set(key, index);
+      const total = counts.get(key)!;
+      labels.set(node.id, { label: total > 1 ? `${node.label} (${index})` : node.label, index, total });
+    }
+    return labels;
+  }, [graph.nodes]);
   const selected = graph.nodes.find((n) => n.id === selectedId) ?? graph.nodes[0];
   const neighbors = useMemo(
     () =>
@@ -304,7 +321,7 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
         {viewMode === "simple" ? (
           <div className="simpleGraphSummary">
             <div><span>Key items</span><strong>{visible.length}</strong></div>
-            <div><span>Evidence sources</span><strong>{graph.metrics.independent_sources}</strong></div>
+            <div><span>Sources in graph</span><strong>{graph.metrics.independent_sources}</strong></div>
             <div><span>Connections</span><strong>{edges.length}</strong></div>
           </div>
         ) : (
@@ -312,7 +329,7 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
             <div><span>Semantic concepts</span><strong>{semanticCentral.length}</strong></div>
             <div><span>Communities</span><strong>{communities.length}</strong></div>
             <div><span>Bridge concepts</span><strong>{bridgeNodes.length}</strong></div>
-            <div><span>Distinct sources</span><strong>{graph.metrics.independent_sources}</strong></div>
+            <div><span>Sources in graph</span><strong>{graph.metrics.independent_sources}</strong></div>
             <div><span>Density</span><strong>{(analytics.density ?? graph.metrics.density).toFixed(3)}</strong></div>
           </div>
         )}
@@ -368,8 +385,8 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
                     )}
                     <circle cx={p.x} cy={p.y} r={radius} fill={color(node.kind)} />
                     {bridge && <circle cx={p.x} cy={p.y} r={radius + 4} className="bridgeRing" />}
-                    <text x={p.x} y={p.y + radius + 20} textAnchor="middle">{graphLabelLines(node.label).map((line, index) => <tspan key={index} x={p.x} dy={index ? 17 : 0}>{line}</tspan>)}</text>
-                    <title>{node.label} · {kindLabel(node.kind)} · {node.evidence_count} evidence item(s)</title>
+                    <text x={p.x} y={p.y + radius + 20} textAnchor="middle">{graphLabelLines(displayLabels.get(node.id)?.label ?? node.label).map((line, index) => <tspan key={index} x={p.x} dy={index ? 17 : 0}>{line}</tspan>)}</text>
+                    <title>{displayLabels.get(node.id)?.label ?? node.label} · {kindLabel(node.kind)} · {node.evidence_count} evidence item(s)</title>
                   </g>
                 );
               })}
@@ -383,7 +400,7 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
         </div>
         <div className="galileoViewNote">
           <strong>{viewMode === "simple" ? "Simple view" : "Scientific view"}</strong>
-          <span>{viewMode === "simple" ? "All evidence connections are preserved. Columns group item types; they do not imply causation or time order. Select an item for its full name and evidence." : "Shows the complete evidence-derived graph, structural metrics and provenance."}</span>
+          <span>{viewMode === "simple" ? `All evidence connections are preserved. Columns group item types; they do not imply causation or time order. Select an item for its full name and evidence. ${canonicalSourceCount !== undefined && canonicalSourceCount !== graph.metrics.independent_sources ? `This graph includes ${graph.metrics.independent_sources} ${graph.metrics.independent_sources === 1 ? "source" : "sources"}; the Evidence lens counts ${canonicalSourceCount} canonical ${canonicalSourceCount === 1 ? "source" : "sources"}.` : ""}` : "Shows the complete evidence-derived graph, structural metrics and provenance."}</span>
         </div>
 
         {viewMode === "scientific" && <div className="scientificGraphPanels">
@@ -435,7 +452,7 @@ export default function GalileoGraph({ graph }: { graph: GraphData }) {
             <div className="inspectorEyebrow">Selected item</div>
             <div className="inspectorTitle">
               <i style={{ background: color(selected.kind) }} />
-              <div><h3>{selected.label}</h3><span>{kindLabel(selected.kind)}</span></div>
+              <div><h3>{selected.label}</h3><span>{kindLabel(selected.kind)}</span>{(displayLabels.get(selected.id)?.total ?? 0) > 1 && <span className="duplicateContext">{selected.kind === "observation" ? "Evidence record" : "Graph item"} {displayLabels.get(selected.id)?.index} of {displayLabels.get(selected.id)?.total} with this name</span>}</div>
             </div>
             {selected.description && <p className="inspectorDescription">{selected.description}</p>}
 

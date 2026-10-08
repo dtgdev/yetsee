@@ -324,3 +324,11 @@ body { background:#f8fafc; color:#111827; }
 .reasoningPageHeader .reasoningAction small{display:block;font-size:12px;margin-top:8px}
 @media(max-width:1180px){.refinedGraph{grid-template-columns:minmax(0,1fr)}.refinedGraph .galileoInspector{max-height:none}.refinedReasoning .reasoningSummaryGrid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:720px){.investigationContextStrip,.reasoningPageHeader{align-items:flex-start;flex-direction:column}.investigationLensNav>a{min-width:100px}.refinedGraph .simpleGraphSummary{grid-template-columns:repeat(3,1fr)}.refinedGraph .simpleGraphSummary>div{border-bottom:0;border-right:1px solid #edf1f5;padding:12px 8px}.refinedGraph .simpleGraphSummary span{font-size:9px}.refinedGraph .galileoSearch{min-width:120px}.refinedGraph .galileoGraphStage{max-height:540px}.refinedReasoning .reasoningReportPane,.refinedReasoning .reasoningContextPane{padding:18px}}
+
+/* 6.12 visual review: distinguish repeated records and ease reading. */
+.refinedGraph .duplicateContext{display:block;margin-top:7px;color:#566a7d;font-size:12px;line-height:1.5}
+.refinedReasoning .reasoningConclusion{padding:18px 0;border-top:1px solid #edf0f4}
+.refinedReasoning .reasoningConclusion h3{font-size:16px;margin:0 0 10px;color:#243247}
+.refinedReasoning .reasoningConclusion>p{font-size:15px;line-height:1.7;color:#475467;margin:0 0 8px}
+.refinedReasoning .reasoningConclusion .reasoningDisclosure{border-top:0}
+.refinedReasoning .reasoningConclusion .reasoningDisclosure summary{font-size:13px;color:#315f73;padding:10px 0}
