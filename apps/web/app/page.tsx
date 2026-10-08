@@ -56,10 +56,10 @@ export default async function Home() {
 
         <details className="homeSystemDetails"><summary>System activity</summary><section className="scientificMetrics">
           <Metric icon="▣" label="Live Investigations" value={investigations.length.toLocaleString()} note={investigations.length ? "living and replayable" : "ready for first investigation"}/>
-          <Metric icon="▤" label="Evidence Sources" value={connectors.length.toLocaleString()} note={`${healthy} healthy`}/>
+          <Metric icon="▤" label="Connectors" value={connectors.length.toLocaleString()} note={`${healthy} healthy`}/>
           <Metric icon="⌘" label="Knowledge Graph" value={graph.entities.toLocaleString()} note={`${graph.relationships.toLocaleString()} relations`}/>
           <Metric icon="♙" label="Agent Tasks" value={agentSummary.tasks.toLocaleString()} note={`${agentSummary.findings.toLocaleString()} findings`}/>
-          <Metric icon="↗" label="Confidence Updates" value={(workspace?.hypotheses.length ?? 0).toLocaleString()} note="audited beliefs"/>
+          <Metric icon="↗" label="Hypotheses" value={(workspace?.hypotheses.length ?? 0).toLocaleString()} note="in this investigation"/>
         </section></details>
 
         <section className="dashboardGrid">
@@ -74,7 +74,7 @@ export default async function Home() {
                 <div className="confidenceStrip">
                   <div><span>Confidence</span><strong>{confidence ? pct(confidence) : "—"}</strong></div>
                 </div>
-                <div className="investigationFacts"><span><b>{workspace?.observations.length ?? 0}</b>Evidence</span><span><b>{sourceCount}</b>Sources</span><span><b>{featuredFindings.length}</b>Agent Findings</span></div>
+                <div className="investigationFacts"><span><b>{workspace?.observations.length ?? 0}</b>Observations</span><span><b>{sourceCount}</b>Sources</span><span><b>{featuredFindings.length}</b>Agent Findings</span></div>
                 <div className="investigationActions"><Link className="primaryAction" href={nextHref}>{nextLabel} →</Link></div>
               </article>
 
@@ -86,7 +86,7 @@ export default async function Home() {
 
           <details className="homeDataDetails"><summary>Explore source activity</summary><div className="dashboardSecondary">
             <section className="scienceCard evidenceFlow">
-              <div className="sectionTitleRow compact"><div><h2>Evidence Flow</h2><p>Signals entering the system</p></div><Link href="/signal-lake">View All →</Link></div>
+              <div className="sectionTitleRow compact"><div><h2>Recorded observations</h2><p>Signals in the system</p></div><Link href="/signal-lake">View All →</Link></div>
               <strong className="bigNumber">{signal.observations.toLocaleString()}</strong><small>observations in the Signal Lake</small>
             </section>
 
@@ -102,7 +102,7 @@ export default async function Home() {
 
         <details className="homeDataDetails"><summary>Agent activity and tools</summary><div className="homeResearchGrid">
         <section className="railCard">
-          <div className="sectionTitleRow compact"><div><h2>Live Agent Activity</h2><p>Real-time agent orchestration</p></div><Link href="/agents">View All</Link></div>
+          <div className="sectionTitleRow compact"><div><h2>Recent agent activity</h2><p>Latest recorded tasks</p></div><Link href="/agents">View All</Link></div>
           <div className="activityList">
             {tasks.slice(0,5).map((t,i)=><div key={t.id}><span className={`agentBullet a${i}`}>◉</span><p><strong>{humanize(t.agent_id)}</strong><small>{humanize(t.task_type)}</small></p><em className={t.status}>{t.status}</em></div>)}
             {!tasks.length&&<p className="emptyRail">No recent agent activity.</p>}
@@ -112,7 +112,7 @@ export default async function Home() {
         <section className="railCard quickActions">
           <h2>Quick Actions</h2>
           <Link className="darkButton" href="/discovery">Explore discoveries</Link>
-          <Link href="/agents">♙ Run Agent Review</Link>
+          <Link href="/agents">♙ Agent registry</Link>
           <Link href="/signal-lake">▤ Explore Signal Lake</Link>
           <Link href="/graph">⌘ Search Knowledge Graph</Link>
           <Link href="/operations">⊙ View Operations</Link>
