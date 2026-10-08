@@ -37,8 +37,6 @@ export default async function Home() {
   const healthy = connectors.filter(c => c.state?.health === "healthy").length;
   const sourceCount = workspace ? new Set(workspace.observations.map(o => o.source)).size : signal.sources.length;
   const confidence = workspace?.hypotheses[0]?.confidence ?? featured?.confidence ?? 0;
-  const prior = workspace?.hypotheses[0]?.prior_confidence ?? confidence;
-  const confidenceDelta = Math.max(0, confidence - prior);
   const featuredFindings = workspace?.agent_findings.slice(0,3) ?? findings.slice(0,3);
   const nextHref = featured ? workspace && workspace.hypotheses.length === 0 ? `/investigations/${featured.id}?lens=evidence#hypothesis-setup` : `/investigations/${featured.id}` : "/discovery";
   const nextLabel = featured ? workspace && workspace.hypotheses.length === 0 ? "Define a hypothesis" : "Continue investigation" : "Explore discoveries";
@@ -54,15 +52,6 @@ export default async function Home() {
             <Link className="homePrimaryAction" href={nextHref}>{nextLabel} →</Link>
             {featured&&<Link className="homeSecondaryAction" href="/investigations">See all investigations</Link>}
           </div>
-          <div className="knowledgeOrb" aria-hidden="true">
-            <span className="orbCore" />
-            <span className="orbitLabel health">Health</span>
-            <span className="orbitLabel technology">Technology</span>
-            <span className="orbitLabel lifestyle">Lifestyle</span>
-            <span className="orbitLabel science">Science</span>
-            <span className="orbitLabel markets">Markets</span>
-            {Array.from({length:18}).map((_,i)=><i key={i} style={{"--i":i} as React.CSSProperties}/>) }
-          </div>
         </section>
 
         <details className="homeSystemDetails"><summary>System activity</summary><section className="scientificMetrics">
@@ -75,21 +64,15 @@ export default async function Home() {
 
         <section className="dashboardGrid">
           <div className="dashboardPrimary">
-            <div className="sectionTitleRow"><div><h2>Active Investigations</h2><p>Top topics evolving with evidence and reasoning signals</p></div><Link href="/investigations">View All →</Link></div>
+            <div className="sectionTitleRow"><div><h2>Continue your research</h2><p>Choose an investigation to explore its evidence and next step.</p></div><Link href="/investigations">See all →</Link></div>
 
             <div className="investigationShowcase">
               <article className="featuredInvestigation">
-                <div className="investigationVisual">
-                  <span className="visualTag">{featured ? "LIVE INVESTIGATION" : "READY"}</span>
-                  <span className="visualPulse"><i/> LIVE</span>
-                  <div className="signalHorizon"><i/><i/><i/><i/><i/><i/></div>
-                </div>
+                <span className="featuredEyebrow">{featured ? "RECENT INVESTIGATION" : "GET STARTED"}</span>
                 <h3>{workspace?.investigation.title ?? featured?.title ?? "Start your first investigation"}</h3>
                 <p>{workspace?.investigation.summary ?? featured?.summary ?? "Explore discoveries and choose a question to investigate."}</p>
                 <div className="confidenceStrip">
                   <div><span>Confidence</span><strong>{confidence ? pct(confidence) : "—"}</strong></div>
-                  <span className="positiveDelta">↑ {confidenceDelta ? pct(confidenceDelta) : "live"}</span>
-                  <MiniSpark />
                 </div>
                 <div className="investigationFacts"><span><b>{workspace?.observations.length ?? 0}</b>Evidence</span><span><b>{sourceCount}</b>Sources</span><span><b>{featuredFindings.length}</b>Agent Findings</span></div>
                 <div className="investigationActions"><Link className="primaryAction" href={nextHref}>{nextLabel} →</Link></div>
@@ -101,11 +84,10 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="dashboardSecondary">
+          <details className="homeDataDetails"><summary>Explore source activity</summary><div className="dashboardSecondary">
             <section className="scienceCard evidenceFlow">
               <div className="sectionTitleRow compact"><div><h2>Evidence Flow</h2><p>Signals entering the system</p></div><Link href="/signal-lake">View All →</Link></div>
               <strong className="bigNumber">{signal.observations.toLocaleString()}</strong><small>observations in the Signal Lake</small>
-              <div className="flowChart" aria-label="Decorative evidence flow chart"><svg viewBox="0 0 420 120" role="img"><polyline points="0,95 32,78 60,88 90,62 118,72 146,42 176,57 210,28 240,47 272,31 302,54 336,20 368,35 400,18 420,29"/><polyline className="purple" points="0,104 45,98 85,91 125,87 165,72 205,77 245,65 285,69 325,54 365,59 420,48"/><polyline className="green" points="0,110 52,108 104,99 156,102 208,89 260,94 312,80 364,83 420,69"/></svg><div><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>Now</span></div></div>
             </section>
 
             <section className="scienceCard sourceDiversity">
@@ -115,18 +97,10 @@ export default async function Home() {
                 return <div className="sourceBarRow" key={s.source}><span><i className={`sourceDot s${idx}`}/>{s.source}</span><b><i style={{width:`${Math.max(12,(s.count/max)*100)}%`}}/></b><em>{s.count}</em></div>
               })}
             </section>
-          </div>
+          </div></details>
         </section>
 
-        <section className="whyStrip">
-          <div><span>▤</span><p><strong>Immutable Evidence</strong>Every observation is versioned and replayable.</p></div>
-          <div><span>◉</span><p><strong>Replaceable Intelligence</strong>A small kernel and swappable intelligence extensions.</p></div>
-          <div><span>△</span><p><strong>Scientific Process</strong>Audited, explainable and designed for truth.</p></div>
-          <blockquote>“The goal is not more information.<br/>The goal is better understanding.”<cite>— YetSee OS</cite></blockquote>
-        </section>
-      </main>
-
-      <aside className="activityRail">
+        <details className="homeDataDetails"><summary>Agent activity and tools</summary><div className="homeResearchGrid">
         <section className="railCard">
           <div className="sectionTitleRow compact"><div><h2>Live Agent Activity</h2><p>Real-time agent orchestration</p></div><Link href="/agents">View All</Link></div>
           <div className="activityList">
@@ -137,7 +111,7 @@ export default async function Home() {
 
         <section className="railCard quickActions">
           <h2>Quick Actions</h2>
-          <Link className="darkButton" href="/investigations">＋ New Investigation</Link>
+          <Link className="darkButton" href="/discovery">Explore discoveries</Link>
           <Link href="/agents">♙ Run Agent Review</Link>
           <Link href="/signal-lake">▤ Explore Signal Lake</Link>
           <Link href="/graph">⌘ Search Knowledge Graph</Link>
@@ -146,10 +120,11 @@ export default async function Home() {
 
         <section className="railCard recentFindings">
           <div className="sectionTitleRow compact"><h2>Recent Findings</h2><Link href="/agents">View All</Link></div>
-          {(featuredFindings.length ? featuredFindings : findings.slice(0,4)).map((f,i)=><div key={f.id}><span className={`findingIcon sev-${f.severity}`}>{f.severity === "critical" ? "×" : f.severity === "warning" ? "!" : "i"}</span><p><strong>{f.title}</strong><small>{humanize(f.category)}</small></p><time>{i+2}h</time></div>)}
+          {(featuredFindings.length ? featuredFindings : findings.slice(0,4)).map(f=><div key={f.id}><span className={`findingIcon sev-${f.severity}`}>{f.severity === "critical" ? "×" : f.severity === "warning" ? "!" : "i"}</span><p><strong>{f.title}</strong><small>{humanize(f.category)}</small></p></div>)}
           {!featuredFindings.length && !findings.length && <p className="emptyRail">Agent findings will appear here after an audited review.</p>}
         </section>
-      </aside>
+        </div></details>
+      </main>
     </StudioFrame>
   );
 }
@@ -157,6 +132,5 @@ export default async function Home() {
 function Metric({icon,label,value,note}:{icon:string;label:string;value:string;note:string}) {
   return <div className="scienceMetric"><span className="metricIcon">{icon}</span><div><p>{label}</p><strong>{value}</strong><small>{note}</small></div></div>;
 }
-function MiniSpark(){return <svg className="miniSpark" viewBox="0 0 90 30" aria-hidden="true"><polyline points="0,25 12,22 23,23 34,17 45,19 56,11 67,13 78,7 90,4"/></svg>}
 function humanize(value:string){ return value.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()); }
 
