@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.knowledge_graph.investigation import investigation_graph
+from app.knowledge_graph.read_model import read_investigation_graph
 from app.reasoning_runtime.contracts import ReasonerManifest, ReasoningOutput
 
 
@@ -16,7 +16,7 @@ class GraphReasoner:
         )
 
     def execute(self, db, investigation_id: str) -> ReasoningOutput:
-        graph = investigation_graph(db, investigation_id)
+        graph = read_investigation_graph(db, investigation_id)
         metrics = graph["metrics"]
         analytics = graph.get("analytics", {})
         nodes = graph["nodes"]
@@ -188,6 +188,8 @@ class GraphReasoner:
                 "bridge_nodes": bridge_nodes[:5],
                 "top_semantic_nodes": semantic_central_nodes[:5],
                 "graph_density": analytics.get("density", 0.0),
+                "read_model": graph["read_model"],
             },
             explanation=explanation,
         )
+

@@ -65,7 +65,7 @@ def _context_text(publication: ScientificPublication, passages: list[ScientificP
     return " ".join([publication.title, *[passage.text for passage in passages]])
 
 
-def project_investigation_literature_graph(db: Session, investigation_id: str) -> dict:
+def project_investigation_literature_graph(db: Session, investigation_id: str, *, commit: bool = True) -> dict:
     if db.get(Investigation, investigation_id) is None:
         raise KeyError("Investigation not found")
 
@@ -264,7 +264,10 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
                 )
                 relationship_ids.add(relation.id)
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return {
         "investigation_id": investigation_id,
                     "investigation_ids": [investigation_id],
@@ -275,6 +278,8 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
         "context_nodes": context_nodes,
         "node_count": len(node_ids),
         "relationship_count": len(relationship_ids),
+        "relationship_ids": sorted(relationship_ids),
+        "node_ids": sorted(node_ids),
         "policy": {
             "canonical_literature_remains_in_scientific_tables": True,
             "graph_is_derived_projection": True,
@@ -283,3 +288,4 @@ def project_investigation_literature_graph(db: Session, investigation_id: str) -
             "projection": "scientific-literature-graph-projection-v1",
         },
     }
+

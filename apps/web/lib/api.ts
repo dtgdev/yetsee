@@ -16,10 +16,22 @@ export class ApiError extends Error {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
+  return apiRequest<T>(path, { method: "GET" });
+}
+
+export async function apiPost<T>(path: string, body: unknown = {}): Promise<T> {
+  return apiRequest<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function apiRequest<T>(path: string, options: RequestInit): Promise<T> {
   const baseUrl = typeof window === "undefined" ? INTERNAL_API_URL : API_URL;
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}${path}`, { cache: "no-store" });
+    response = await fetch(`${baseUrl}${path}`, { ...options, cache: "no-store" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown network error";
     throw new ApiError(0, path, `Could not reach YetSee API at ${baseUrl}. ${message}`);
@@ -37,3 +49,4 @@ export async function apiGet<T>(path: string): Promise<T> {
   }
   return response.json() as Promise<T>;
 }
+

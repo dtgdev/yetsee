@@ -7,7 +7,7 @@ from app.models.feature import Feature, FeatureRun
 from app.models.investigation import Investigation
 from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink, HypothesisConfidenceHistory
 from app.models.kernel import InvestigationRevision, KernelCommandLog, KernelEvent, PluginRecord, WorkflowRun
-from app.models.graph import GraphRun
+from app.models.graph import GraphRun, InvestigationGraphProjection
 from app.models.mission import InvestigationMission, InvestigationMissionStep, ScientificDecision, ScientificResolution, ScientificMemory
 from app.models.observation import Observation
 from app.models.opportunity import Opportunity
@@ -23,7 +23,8 @@ __all__ = [
     "ScientificDecision", "ScientificResolution", "ScientificMemory", "Observation", "Signal", "Entity",
     "Relationship", "ReasoningRun", "ReasoningResult", "Investigation", "Hypothesis", "HypothesisEvidenceLink",
     "HypothesisConfidenceHistory", "InvestigationRevision", "KernelEvent", "KernelCommandLog", "PluginRecord",
-    "WorkflowRun", "GraphRun", "EvidenceLink", "ScientificPublication", "ScientificPassage", "ScientificClaim",
+    "WorkflowRun", "GraphRun", "InvestigationGraphProjection", "EvidenceLink", "ScientificPublication", "ScientificPassage", "ScientificClaim",
     "Feature", "FeatureRun", "Opportunity", "ConnectorRun", "ConnectorState", "DetectorRun",
     "DiscoveryCandidate", "SemanticConcept", "SemanticRun",
 ]
+

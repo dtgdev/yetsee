@@ -32,7 +32,7 @@ from app.discovery_engine.registry import registry as detector_registry
 from app.feature_engine.engine import latest_features, recompute_features
 from app.feature_engine.registry import registry as feature_registry
 from app.knowledge_graph.engine import graph_summary, neighborhood, rebuild_graph
-from app.knowledge_graph.investigation import investigation_graph
+from app.knowledge_graph.read_model import read_investigation_graph
 from app.agent_orchestration.engine import refresh_investigation, run_agent, run_investigation_team
 from app.agent_orchestration.registry import registry as agent_registry
 from app.semantic_engine.engine import latest_concepts, recompute_semantics, semantic_summary
@@ -470,7 +470,7 @@ def graph_runs(db: DB, limit: int = Query(default=50, ge=1, le=500)):
 @router.get("/investigations/{investigation_id}/graph")
 def investigation_graph_route(investigation_id: str, db: DB):
     try:
-        return investigation_graph(db, investigation_id)
+        return read_investigation_graph(db, investigation_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Investigation not found") from exc
 
@@ -874,3 +874,4 @@ def reasoning_result_route(result_id: str, db: DB):
     if item is None:
         raise HTTPException(status_code=404, detail="Reasoning result not found")
     return item
+

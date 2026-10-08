@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.knowledge_graph.analytics import analyze_investigation_graph
 
 from app.models.entity import Entity
+from app.models.graph import InvestigationGraphProjection
 from app.models.evidence import EvidenceLink
 from app.models.hypothesis import Hypothesis, HypothesisEvidenceLink
 from app.models.investigation import Investigation
@@ -219,21 +220,62 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
         db.scalars(select(Relationship).order_by(Relationship.confidence.desc()))
     )
     scoped_evidence_ids = set(observation_ids) | set(literature_passage_ids)
+    projection_state = db.get(InvestigationGraphProjection, investigation_id)
+    active_relationship_ids = set(
+        projection_state.summary_json.get("relationship_ids", [])
+    ) if projection_state else None
+
+    def in_scope(item: Relationship) -> bool:
+        provenance = item.provenance or {}
+        evidence = set(item.evidence_ids or [])
+        # Historical provenance alone must not retain detached evidence. Order
+        # assertions need BOTH events in scope, rather than either endpoint.
+        if evidence:
+            if not evidence.intersection(scoped_evidence_ids):
+                return False
+            if item.kind == "EVENT_PRECEDES" and not evidence.issubset(scoped_evidence_ids):
+                return False
+        elif investigation_id not in provenance.get("investigation_ids", []):
+            return False
+        managed = (
+            provenance.get("cross_domain_projection")
+            or provenance.get("temporal_projection")
+            or provenance.get("temporal_order_only")
+            or provenance.get("derived_assessment")
+            or provenance.get("derived_gap_assessment")
+            or provenance.get("method") in {
+                "scientific-literature-graph-projection-v1", "explicit-clinical-trial-id",
+                "deterministic-scientific-context-v1", "deterministic-intervention-mention-v1",
+                "evidence-state-graph-projection-v1",
+            }
+        )
+        return not managed or active_relationship_ids is None or item.id in active_relationship_ids
+
     relationships: list[Relationship] = [
         item
         for item in all_relationships
-        if set(item.evidence_ids or []).intersection(scoped_evidence_ids)
-        or investigation_id in (item.provenance or {}).get("investigation_ids", [])
+        if in_scope(item)
     ]
 
     entity_ids: set[str] = set()
     for relationship in relationships:
         entity_ids.add(relationship.source_entity_id)
         entity_ids.add(relationship.target_entity_id)
+    if projection_state:
+        entity_ids.update(projection_state.summary_json.get("node_ids", []))
     entities: list[Entity] = []
     if entity_ids:
         entities = list(db.scalars(select(Entity).where(Entity.id.in_(entity_ids))))
+    # Assessment objects belong to an investigation even if their source passage
+    # or target entity is shared with another investigation.
+    entities = [item for item in entities if (
+        item.kind not in {"assessment", "evidence_gap"}
+        or (item.attributes or {}).get("investigation_id") in {None, investigation_id}
+    )]
     entity_by_id = {item.id: item for item in entities}
+    relationships = [item for item in relationships if (
+        item.source_entity_id in entity_by_id and item.target_entity_id in entity_by_id
+    )]
 
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
@@ -445,7 +487,8 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
             }
         )
 
-    edges = _consolidate_semantic_edges(edges)
+    nodes.sort(key=lambda node: node["id"])
+    edges = sorted(_consolidate_semantic_edges(edges), key=lambda edge: edge["id"])
 
     # Degree is deliberately calculated on the investigation projection, not on
     # the global graph. This makes the metric scientifically scoped and replayable.
@@ -506,3 +549,4 @@ def investigation_graph(db: Session, investigation_id: str) -> dict[str, Any]:
 
     projection["analytics"] = analyze_investigation_graph(projection)
     return projection
+

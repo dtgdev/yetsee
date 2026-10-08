@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.knowledge_graph.analytics import analyze_investigation_graph
-from app.knowledge_graph.investigation import investigation_graph
+from app.knowledge_graph.read_model import read_investigation_graph
 
 
 SYSTEM_NODE_KINDS = {"investigation", "hypothesis", "observation"}
@@ -25,7 +25,7 @@ def evidence_scoped_investigation_graph(
     evidence provenance intersects the requested evidence IDs. Graph metrics and
     analytics are recomputed on the resulting projection.
     """
-    canonical = investigation_graph(db, investigation_id)
+    canonical = read_investigation_graph(db, investigation_id)
     requested = {item for item in evidence_ids if item}
 
     if not requested:
@@ -116,6 +116,8 @@ def evidence_scoped_investigation_graph(
         },
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "derived": True,
+        "read_model": canonical["read_model"],
+        "auto_projection": canonical["auto_projection"],
         "scope": {
             "kind": "evidence",
             "evidence_ids": sorted(requested),
@@ -124,3 +126,4 @@ def evidence_scoped_investigation_graph(
     }
     projection["analytics"] = analyze_investigation_graph(projection)
     return projection
+

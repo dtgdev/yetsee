@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 from sqlalchemy import select
@@ -14,6 +14,12 @@ from app.knowledge_graph.ontology import (
 )
 from app.models.entity import Entity
 from app.models.relationship import Relationship
+
+
+def _utc(value: datetime) -> datetime:
+    # SQLite drops the offset from DateTime(timezone=True). PostgreSQL retains
+    # it; normalize both representations before repeated projector comparisons.
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
 def governed_entity(
@@ -128,9 +134,9 @@ def governed_relationship(
         existing.evidence_ids = list(dict.fromkeys([*existing.evidence_ids, *ids]))
         existing.confidence = max(existing.confidence, max(0.0, min(1.0, confidence)))
         if first_seen is not None:
-            existing.first_seen = first_seen if existing.first_seen is None else min(existing.first_seen, first_seen)
+            existing.first_seen = _utc(first_seen) if existing.first_seen is None else min(_utc(existing.first_seen), _utc(first_seen))
         if last_seen is not None:
-            existing.last_seen = last_seen if existing.last_seen is None else max(existing.last_seen, last_seen)
+            existing.last_seen = _utc(last_seen) if existing.last_seen is None else max(_utc(existing.last_seen), _utc(last_seen))
         merged_provenance = _merge_provenance(existing.provenance or {}, provenance)
         existing.provenance = {
             **merged_provenance,
@@ -156,3 +162,4 @@ def governed_relationship(
     db.add(relationship)
     db.flush()
     return relationship
+

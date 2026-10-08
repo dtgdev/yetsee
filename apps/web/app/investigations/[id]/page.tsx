@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { apiGet } from "../../../lib/api";
+import { apiGet, apiPost } from "../../../lib/api";
 import InvestigationAgentActions from "../../../components/InvestigationAgentActions";
 import InvestigationMissionActions from "../../../components/InvestigationMissionActions";
 import { RunGraphReasoner } from "../../../components/ReasoningActions";
@@ -27,8 +27,6 @@ type Workspace = {
   agent_tasks:{id:string;agent_id:string;task_type:string;status:string;result_json:Record<string,unknown>;created_at:string}[];
 };
 type Command = {id:string;command_type:string;aggregate_id:string|null;correlation_id:string;causation_id:string|null;status:string;requested_at:string};
-type Entity = {id:string;canonical_name:string;kind:string};
-type Relationship = {id:string;source_entity_id:string;target_entity_id:string;kind:string;confidence:number;evidence_ids:string[]};
 type ReasoningResult = {id:string;run_id:string;investigation_id:string;reasoner_id:string;conclusion:string;confidence:number;support_level:string;supporting_factors:any[];contradicting_factors:any[];assumptions:string[];limitations:string[];recommended_evidence:string[];metrics:Record<string,any>;evidence_ids:string[];explanation:string;created_at:string};
 type ReasoningRun = {id:string;reasoner_id:string;status:string;started_at:string|null;finished_at:string|null;created_at:string};
 type Manifest = {id:string;name:string;version:string;scientific_question:string;deterministic:boolean};
@@ -105,16 +103,20 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
   const {id}=await params;
   const query=await searchParams;
   const active=(lenses.some(l=>l.id===query.lens)?query.lens:"overview") as Lens;
+  let graphPreparationFailed = false;
+  try {
+    await apiPost(`/api/v1/investigations/${id}/graph/auto-project`);
+  } catch {
+    graphPreparationFailed = true;
+  }
   const emptyAccounting:EvidenceAccounting={canonical_evidence_count:0,observation_evidence_count:0,literature_evidence_count:0,independent_source_count:0,independent_publication_count:0,supporting_count:0,contradicting_count:0,contextual_count:0,literature_supporting_count:0,literature_contradicting_count:0,literature_contextual_count:0,literature_items:[],policy:{canonical_sources:["observation","scientific_passage"],derived_claims_are_evidence:false,memory_is_evidence:false}};
-  const [w,allCommands,reasoningResults,reasoningRuns,reasoners,entities,relationships,investigationGraph,evidenceAccounting,literatureSynthesis,agentManifests]=await Promise.all([
+  const [w,allCommands,reasoningResults,reasoningRuns,reasoners,investigationGraph,evidenceAccounting,literatureSynthesis,agentManifests]=await Promise.all([
     apiGet<Workspace>(`/api/v1/investigations/${id}/workspace`),
     safe<Command[]>("/api/v1/kernel/commands?limit=150",[]),
     safe<ReasoningResult[]>(`/api/v1/investigations/${id}/reasoning/results`,[]),
     safe<ReasoningRun[]>(`/api/v1/investigations/${id}/reasoning/runs`,[]),
     safe<Manifest[]>("/api/v1/reasoners",[]),
-    safe<Entity[]>("/api/v1/graph/entities?limit=120",[]),
-    safe<Relationship[]>("/api/v1/graph/relationships?limit=180",[]),
-    safe<InvestigationGraph>(`/api/v1/investigations/${id}/graph`,{investigation:{id,title:"",status:""},nodes:[],edges:[],metrics:{nodes:0,edges:0,entities:0,observations:0,hypotheses:0,independent_sources:0,sources:[],connected_components:0,density:0,relationship_types:{}},generated_at:"",derived:true}),
+    apiGet<InvestigationGraph>(`/api/v1/investigations/${id}/graph/read-model`),
     safe<EvidenceAccounting>(`/api/v1/investigations/${id}/evidence-accounting`,emptyAccounting),
     safe<LiteratureSynthesisItem[]>(`/api/v1/investigations/${id}/claim-synthesis`,[]),
     safe<AgentManifest[]>("/api/v1/agents",[]),
@@ -131,11 +133,6 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
   const neutral=w.hypothesis_evidence.filter(e=>e.stance==="neutral");
   const latestReasoning=reasoningResults[0];
   const graphManifest=reasoners.find(r=>r.id==="graph");
-  const canonicalEvidenceIds=evidenceAccounting.literature_items.map(item=>item.passage.id);
-  const evidenceSet=new Set(latestReasoning?.evidence_ids??[...w.observations.map(o=>o.id),...canonicalEvidenceIds]);
-  const relevantRelationships=relationships.filter(r=>r.evidence_ids.some(eid=>evidenceSet.has(eid)));
-  const relevantEntityIds=new Set(relevantRelationships.flatMap(r=>[r.source_entity_id,r.target_entity_id]));
-  const relevantEntities=entities.filter(e=>relevantEntityIds.has(e.id));
   const latestFindings=w.agent_findings.slice(0,6);
   const currentConfidence=primary?.confidence??inv.confidence;
   const graphAnalytics=investigationGraph.analytics??{};
@@ -265,5 +262,6 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
     body=<div className="lensWorkspace"><ResearchMetrics><Metric label="Hypothesis confidence" value={pct(currentConfidence)} note={primary?`Prior ${pct(primary.prior_confidence)}`:"discovery confidence"} tone="green"/><Metric label="Evidence" value={canonicalEvidenceCount} note={`${canonicalSupporting} supporting · ${canonicalContradicting} contradicting`}/><Metric label="Independent sources" value={canonicalSourceCount} note={sourceLabels.join(" · ")||"none"} tone="violet"/><Metric label="Reasoning" value={latestReasoning?pct(latestReasoning.confidence):"—"} note={latestReasoning?`${latestReasoning.support_level} graph support`:"not yet run"} tone="blue"/></ResearchMetrics><div className="investigationSummaryGrid"><ResearchPanel title="Primary hypothesis" subtitle="The current belief being tested."><div className="hypothesisHero"><div><StatusPill tone="violet">{primary?.status??"pending"}</StatusPill><h3>{primary?.title??"No hypothesis yet"}</h3><p>{primary?.description??"Create a first-class hypothesis to begin evidence-based reasoning."}</p></div>{primary&&<div className="confidenceDial"><strong>{pct(primary.confidence)}</strong><span>confidence</span></div>}</div></ResearchPanel><ResearchPanel title="Attention required" subtitle="What should the investigator inspect next?"><div className="attentionList">{latestFindings.length?latestFindings.slice(0,4).map(f=><div key={f.id}><span className={`findingDot ${f.severity}`}>!</span><div><strong>{f.title}</strong><small>{f.agent_id} · {Math.round(f.confidence*100)}%</small></div></div>):<p className="emptyText">No outstanding agent findings.</p>}</div></ResearchPanel><ResearchPanel title="Latest activity" subtitle="Recent audited changes."><div className="timelineMini">{[...w.timeline].reverse().slice(0,6).map(e=><div key={e.id}><i/><time>{new Date(e.occurred_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</time><span>{e.event_type}</span></div>)}</div></ResearchPanel></div><div className="workspaceOverviewGrid"><ResearchPanel title="Evidence health" subtitle="Canonical evidence from observations and scientific literature."><div className="assessmentRows"><div><span>Evidence items</span><strong>{canonicalEvidenceCount}</strong></div><div><span>Independent sources</span><strong>{canonicalSourceCount}</strong></div><div><span>Scientific passages</span><strong>{evidenceAccounting.literature_evidence_count}</strong></div><div><span>Supporting / contradicting</span><strong>{canonicalSupporting} / {canonicalContradicting}</strong></div></div><Link className="tinyLink" href={`/investigations/${id}?lens=evidence`}>Inspect evidence →</Link></ResearchPanel><ResearchPanel title="Current structural interpretation" subtitle="The latest permanent reasoning result.">{latestReasoning?<><div className="overviewReasoning"><strong>{pct(latestReasoning.confidence)}</strong><div><StatusPill tone={latestReasoning.confidence>=.75?"green":"amber"}>{latestReasoning.support_level}</StatusPill><p>{latestReasoning.conclusion}</p></div></div><Link className="tinyLink" href={`/investigations/${id}?lens=reasoning`}>Open reasoning lens →</Link></>:<><p className="emptyText">No reasoning result yet.</p><RunGraphReasoner investigationId={id}/></>}</ResearchPanel></div><ResearchPanel title="Scientific workflow" subtitle="One investigation, multiple lenses, one auditable history."><div className="investigationWorkflow">{lenses.slice(0,5).map((l,i)=><Link key={l.id} href={`/investigations/${id}?lens=${l.id}`}><span>{i+1}</span><div><strong>{l.label}</strong><small>{l.question}</small></div><b>→</b></Link>)}</div></ResearchPanel></div>;
   }
 
-  return <StudioFrame active="Investigations"><ResearchPage eyebrow="Living Investigation" title={inv.title} subtitle={inv.summary??"Evidence-backed, versioned and continuously reviewable."} actions={<InvestigationAgentActions investigationId={id}/>}>{commonHeader}{body}</ResearchPage></StudioFrame>;
+  return <StudioFrame active="Investigations"><ResearchPage eyebrow="Living Investigation" title={inv.title} subtitle={inv.summary??"Evidence-backed, versioned and continuously reviewable."} actions={<InvestigationAgentActions investigationId={id}/>}>{commonHeader}{graphPreparationFailed&&<p role="alert">The graph update could not complete. Showing the available graph; refresh this page to retry.</p>}{body}</ResearchPage></StudioFrame>;
 }
+

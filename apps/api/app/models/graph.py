@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Integer, JSON, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -20,3 +20,17 @@ class GraphRun(UUIDMixin, TimestampMixin, Base):
     feature_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class InvestigationGraphProjection(TimestampMixin, Base):
+    """Derived projection freshness and membership; never canonical evidence."""
+
+    __tablename__ = "investigation_graph_projections"
+
+    investigation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("investigations.id"), primary_key=True
+    )
+    projection_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+

@@ -49,7 +49,7 @@ def _assertions(observation: Observation) -> list[dict]:
     return extract_graph_assertions(observation)
 
 
-def project_cross_domain_observation_graph(db: Session, investigation_id: str) -> dict:
+def project_cross_domain_observation_graph(db: Session, investigation_id: str, *, commit: bool = True) -> dict:
     """Materialize explicit cross-domain graph assertions from canonical observations.
 
     Assertions are machine-readable facts carried by the observation payload.
@@ -133,13 +133,18 @@ def project_cross_domain_observation_graph(db: Session, investigation_id: str) -
             relationship_ids.add(relationship.id)
             assertion_count += 1
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return {
         "investigation_id": investigation_id,
         "observation_count": len(observations),
         "assertion_count": assertion_count,
         "node_count": len(node_ids),
         "relationship_count": len(relationship_ids),
+        "relationship_ids": sorted(relationship_ids),
+        "node_ids": sorted(node_ids),
         "skipped_observation_count": skipped_observation_count,
         "policy": {
             "observations_remain_canonical_evidence": True,
@@ -152,3 +157,4 @@ def project_cross_domain_observation_graph(db: Session, investigation_id: str) -
             "projection": "cross-domain-observation-graph-projection-v1",
         },
     }
+

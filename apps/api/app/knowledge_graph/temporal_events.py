@@ -86,7 +86,7 @@ def normalize_observation_event(observation: Observation) -> dict[str, Any] | No
     }
 
 
-def project_temporal_events(db: Session, investigation_id: str) -> dict[str, Any]:
+def project_temporal_events(db: Session, investigation_id: str, *, commit: bool = True) -> dict[str, Any]:
     if db.get(Investigation, investigation_id) is None:
         raise KeyError("Investigation not found")
 
@@ -227,7 +227,10 @@ def project_temporal_events(db: Session, investigation_id: str) -> dict[str, Any
                 relationship_ids.add(relation.id)
                 precedence_count += 1
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return {
         "investigation_id": investigation_id,
         "observation_count": len(observations),
@@ -235,6 +238,7 @@ def project_temporal_events(db: Session, investigation_id: str) -> dict[str, Any
         "event_node_count": len(event_entities),
         "involved_entity_count": len(involved_entity_ids),
         "relationship_count": len(relationship_ids),
+        "relationship_ids": sorted(relationship_ids),
         "precedence_relationship_count": precedence_count,
         "timeline": [
             {
@@ -257,3 +261,4 @@ def project_temporal_events(db: Session, investigation_id: str) -> dict[str, Any
             "normalizer": TEMPORAL_NORMALIZER_VERSION,
         },
     }
+

@@ -7,9 +7,33 @@ from app.knowledge_graph.cross_domain_projection import project_cross_domain_obs
 from app.knowledge_graph.temporal_events import project_temporal_events
 from app.knowledge_graph.evidence_state_projection import project_evidence_state_graph
 from app.knowledge_graph.query import query_investigation_graph
+from app.knowledge_graph.auto_projection import ensure_investigation_projection
+from app.knowledge_graph.read_model import read_investigation_graph
 
 
 router = APIRouter()
+
+
+class AutoProjectionRequest(BaseModel):
+    force: bool = False
+
+
+@router.post("/investigations/{investigation_id}/graph/auto-project")
+def auto_project_graph(investigation_id: str, payload: AutoProjectionRequest, db: DB):
+    try:
+        return ensure_investigation_projection(db, investigation_id, force=payload.force)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Investigation not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/investigations/{investigation_id}/graph/read-model")
+def graph_read_model(investigation_id: str, db: DB):
+    try:
+        return read_investigation_graph(db, investigation_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Investigation not found") from exc
 
 
 class EvidenceGraphProjectionRequest(BaseModel):
@@ -99,3 +123,4 @@ def query_graph(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+

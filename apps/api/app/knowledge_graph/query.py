@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.knowledge_graph.investigation import investigation_graph
+from app.knowledge_graph.read_model import read_investigation_graph
 from app.models.evidence import EvidenceLink
 from app.models.investigation import Investigation
 from app.models.observation import Observation
@@ -300,7 +300,7 @@ def query_investigation_graph(
     if db.get(Investigation, investigation_id) is None:
         raise KeyError("Investigation not found")
 
-    graph = investigation_graph(db, investigation_id)
+    graph = read_investigation_graph(db, investigation_id)
     query_type = query_type.strip().lower()
     limit = max(1, min(50, limit))
 
@@ -344,6 +344,7 @@ def query_investigation_graph(
         } if target else None,
         "evidence_id": evidence_id,
         "result_count": len(paths),
+        "read_model": graph["read_model"],
         "paths": paths,
         "policy": {
             "investigation_scoped": True,
@@ -356,3 +357,4 @@ def query_investigation_graph(
             "query_version": QUERY_VERSION,
         },
     }
+

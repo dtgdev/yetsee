@@ -56,7 +56,7 @@ def _assessment_node(
     label: str,
     attributes: dict,
 ):
-    return governed_entity(
+    assessment = governed_entity(
         db,
         kind="assessment",
         canonical_name=label,
@@ -71,6 +71,8 @@ def _assessment_node(
             "projection_version": PROJECTION_VERSION,
         },
     )
+    assessment.canonical_name = label
+    return assessment
 
 
 def _link_assessment(
@@ -83,7 +85,7 @@ def _link_assessment(
     confidence: float,
     provenance: dict,
 ):
-    return governed_relationship(
+    relationship = governed_relationship(
         db,
         source=assessment,
         target=target,
@@ -99,15 +101,19 @@ def _link_assessment(
             **provenance,
         },
     )
+    # Derived assessments reflect the current calculation, including a lower
+    # confidence after new evidence; the canonical writer retains its own rules.
+    relationship.confidence = confidence
+    return relationship
 
 
 def _project_structured_observation_states(
     db: Session,
     investigation_id: str,
     observations: list[Observation],
-) -> tuple[int, int]:
+) -> tuple[int, set[str]]:
     nodes = 0
-    relations = 0
+    relations: set[str] = set()
     for observation in observations:
         payload = observation.payload or {}
         states = payload.get("evidence_states")
@@ -146,7 +152,7 @@ def _project_structured_observation_states(
                 },
             )
             nodes += 1
-            _link_assessment(
+            relation = _link_assessment(
                 db,
                 assessment=assessment,
                 target=target,
@@ -161,11 +167,11 @@ def _project_structured_observation_states(
                     "source_ref": observation.source_ref,
                 },
             )
-            relations += 1
+            relations.add(relation.id)
     return nodes, relations
 
 
-def project_evidence_state_graph(db: Session, investigation_id: str) -> dict:
+def project_evidence_state_graph(db: Session, investigation_id: str, *, commit: bool = True) -> dict:
     """Project derived quality, contradiction, gap, and cross-domain evidence states.
 
     The projection creates graph context only. It never changes canonical evidence,
@@ -300,6 +306,7 @@ def project_evidence_state_graph(db: Session, investigation_id: str) -> dict:
             },
         )
         node_ids.add(gap_entity.id)
+        gap_entity.canonical_name = gap["title"]
         for target in publication_targets:
             evidence_ids = _passage_ids_for_publication(db, investigation_id, target.attributes.get("publication_id"))
             edge = governed_relationship(
@@ -338,11 +345,18 @@ def project_evidence_state_graph(db: Session, investigation_id: str) -> dict:
         db, investigation_id, observations
     )
 
-    db.commit()
+    relationship_ids.update(structured_relations)
+
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return {
         "investigation_id": investigation_id,
         "assessment_node_count": len(node_ids) + structured_nodes,
-        "relationship_count": len(relationship_ids) + structured_relations,
+        "relationship_count": len(relationship_ids),
+        "relationship_ids": sorted(relationship_ids),
+        "node_ids": sorted(node_ids),
         "study_quality_assessment_count": len(quality.get("studies", [])),
         "contradiction_assessment_count": len(contradiction.get("groups", [])),
         "evidence_gap_count": len(gaps.get("gaps", [])),
@@ -359,3 +373,4 @@ def project_evidence_state_graph(db: Session, investigation_id: str) -> dict:
             "projection": PROJECTION_VERSION,
         },
     }
+
