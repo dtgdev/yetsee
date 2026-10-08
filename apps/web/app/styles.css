@@ -243,3 +243,84 @@ body { background:#f8fafc; color:#111827; }
 
 /* Galileo G2.3 — Unified evidence paths */
 .evidencePathActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.evidencePathActions button{border:1px solid #dfe6ef;background:#fff;border-radius:8px;padding:7px 9px;font-size:7px;font-weight:700;color:#315f9f;cursor:pointer}.evidencePathActions button:hover{background:#f5f9ff}.evidencePathActions button:disabled{opacity:.55;cursor:wait}.evidencePathResults{display:grid;gap:7px;margin-top:9px}.evidencePathResults article{border:1px solid #e7ecf3;border-radius:8px;background:#fbfcfe;padding:8px}.evidencePathChain{display:flex;align-items:center;gap:4px;flex-wrap:wrap}.evidencePathChain span{display:flex;align-items:center;gap:4px}.evidencePathChain b{font-size:6.8px;color:#344054;background:#f1f5fb;border:1px solid #e4eaf2;border-radius:999px;padding:4px 6px}.evidencePathChain i{font-style:normal;color:#98a2b3}.evidencePathResults small{display:block;margin-top:6px;font-size:6px;line-height:1.4;color:#7b8797}.evidencePathResults p,.evidencePathError{font-size:6.5px!important;line-height:1.45;color:#7b8797!important;margin:0!important}.evidencePathError{color:#b54747!important;margin-top:7px!important}
+
+
+/* 6.12 — Investigation clarity: readable evidence, progressive disclosure. */
+.investigationTitle{font-size:15px;color:#243247;line-height:1.4}
+.investigationContextStrip{padding:14px 18px;gap:20px}
+.investigationContextStrip span{font-size:12px}
+.investigationLensNav>a{min-width:115px;padding:12px 14px}
+.investigationLensNav strong{font-size:13px}
+.investigationLensNav small{font-size:10px;line-height:1.5}
+.structureScientificHeader h2,.reasoningPageHeader h2{font-size:24px;line-height:1.3;margin:6px 0;color:#243247}
+.structureScientificHeader p,.reasoningPageHeader p{font-size:14px;line-height:1.6;color:#667085}
+.structureScientificHeader>div:first-child>span{font-size:11px}
+.structureGenerated{font-size:11px}
+.workspaceDetails{border:1px solid #e4e9ef;border-radius:12px;padding:16px 20px;background:#fff}
+.workspaceDetails>summary{font-size:14px;font-weight:650;color:#344054;cursor:pointer;padding:4px 0}
+.workspaceDetails>p{font-size:14px;line-height:1.6;color:#667085}
+.workspaceDetails[open]>summary{margin-bottom:16px}
+.workspaceDetails .researchTwoCol{margin-top:12px}
+.refinedGraph{grid-template-columns:minmax(0,1fr) 300px;min-height:0;align-items:start;gap:20px}
+.refinedGraph .galileoCanvas,.refinedGraph .galileoInspector{box-shadow:none;border-color:#e4e9ef}
+.refinedGraph .galileoToolbar{padding:14px;gap:10px;background:#fff}
+.refinedGraph .galileoSearch{padding:10px 12px;min-width:180px}
+.refinedGraph .galileoSearch input{font-size:13px}
+.refinedGraph .galileoViewToggle button,.refinedGraph .galileoZoom button,.refinedGraph .galileoToolbar select{font-size:12px;padding:10px 12px}
+.refinedGraph .galileoViewToggle button{min-width:0}
+.refinedGraph .simpleGraphSummary>div,.refinedGraph .structureAnalyticsStrip>div{padding:14px}
+.refinedGraph .simpleGraphSummary span,.refinedGraph .structureAnalyticsStrip span{font-size:10px;letter-spacing:.03em}
+.refinedGraph .simpleGraphSummary strong,.refinedGraph .structureAnalyticsStrip strong{font-size:20px}
+.refinedGraph .galileoGraphStage{display:block;height:auto;max-height:680px;overflow:auto;background:#fbfcfd;padding:12px 0}
+.refinedGraph .galileoSvg{display:block;min-width:660px;transform:none;transition:none}
+.refinedGraph .galileoSvg line{stroke:#c4d0dc;stroke-width:1.5}
+.refinedGraph .galileoSvg .activeEdge line{stroke:#467594;stroke-width:2.5}
+.refinedGraph .galileoNode circle{stroke-width:2;filter:none}
+.refinedGraph .galileoNode.selected circle,.refinedGraph .galileoNode:focus circle{stroke:#243247;stroke-width:3}
+.refinedGraph .galileoNode .communityHalo{stroke:none}
+.refinedGraph .galileoNode .bridgeRing{stroke-width:1.5;stroke-dasharray:4 4}
+.refinedGraph .galileoNode text{font-size:13px;font-weight:600;fill:#475467;paint-order:stroke;stroke:#fbfcfd;stroke-width:4px;stroke-linejoin:round}
+.refinedGraph .graphColumnLabel{font-size:12px;fill:#667085;font-weight:600}
+.refinedGraph .galileoLegend{padding:12px 14px;gap:12px}
+.refinedGraph .galileoLegend span{font-size:11px}
+.refinedGraph .galileoViewNote{padding:12px 14px;flex-direction:column;gap:4px}
+.refinedGraph .galileoViewNote strong{font-size:12px}
+.refinedGraph .galileoViewNote span{font-size:12px;color:#667085;line-height:1.6}
+.refinedGraph .galileoInspector{padding:20px;min-height:0;max-height:920px}
+.refinedGraph .inspectorEyebrow,.refinedGraph .inspectorSection>span{font-size:10px;letter-spacing:.06em}
+.refinedGraph .inspectorTitle h3{font-size:18px;overflow-wrap:anywhere}
+.refinedGraph .inspectorTitle span,.refinedGraph .inspectorDescription{font-size:12px!important;line-height:1.6!important}
+.refinedGraph .inspectorStats dt{font-size:11px}
+.refinedGraph .inspectorStats dd{font-size:18px}
+.refinedGraph .inspectorBadges span{font-size:10px}
+.refinedGraph .scientificInterpretation,.refinedGraph .inspectorSection>p{font-size:12px!important;line-height:1.6!important}
+.refinedGraph .inspectorSection button strong,.refinedGraph .detailsToggle strong{font-size:12px!important}
+.refinedGraph .inspectorSection button small,.refinedGraph .detailsToggle small{font-size:11px!important;display:block;line-height:1.5;overflow-wrap:anywhere}
+.refinedGraph .inspectorSection button em{font-size:11px}
+.refinedGraph .evidencePath b,.refinedGraph .evidencePathActions button,.refinedGraph .evidencePathChain b{font-size:11px}
+.refinedGraph .evidencePathResults small,.refinedGraph .evidencePathResults p,.refinedGraph .evidencePathError{font-size:12px!important}
+.refinedGraph .inspectorSection pre{font-size:11px;line-height:1.6}
+.refinedGraph .scientificGraphPanels{grid-template-columns:1fr}
+.refinedGraph .scientificGraphPanels>section{min-height:0;border-right:0;border-bottom:1px solid #e7edf4;padding:16px}
+.refinedGraph .graphPanelHeading>span,.refinedGraph .rankedConceptList strong,.refinedGraph .communityExplorer strong,.refinedGraph .bridgeConceptList strong{font-size:12px}
+.refinedGraph .graphPanelHeading small,.refinedGraph .rankedConceptList small,.refinedGraph .communityExplorer small,.refinedGraph .bridgeConceptList small{font-size:11px;white-space:normal}
+.refinedGraph .rankedConceptList b{font-size:12px}
+.refinedGraph button:focus-visible,.refinedGraph select:focus-visible,.workspaceDetails>summary:focus-visible{outline:2px solid #467594;outline-offset:3px}
+.reasoningPageHeader{display:flex;justify-content:space-between;gap:24px;align-items:center;padding:12px 0}
+.refinedReasoning .reasoningSummaryGrid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:20px;align-items:start}
+.refinedReasoning .reasoningReportPane,.refinedReasoning .reasoningContextPane{min-height:0;padding:24px}
+.refinedReasoning .reasoningHeroScore{gap:20px;padding:4px 0 16px;flex-wrap:wrap}
+.refinedReasoning .reasoningHeroScore strong{display:block;font-size:40px;line-height:1.2}
+.refinedReasoning .scoreLabel{display:block;font-size:12px;color:#667085;margin-bottom:6px}
+.refinedReasoning .scoreExplanation{font-size:13px;color:#667085;line-height:1.6;margin:0 0 20px}
+.refinedReasoning .reasoningDisclosure summary{font-size:14px;padding:16px 0}
+.refinedReasoning .reasoningDisclosure p{font-size:14px;line-height:1.7}
+.refinedReasoning .factorCards article span{font-size:13px}
+.refinedReasoning .reasoningContextPane h3{font-size:18px;line-height:1.4}
+.refinedReasoning .reasoningContextPane p{font-size:14px;line-height:1.7}
+.refinedReasoning .tinyLink{font-size:13px}
+.reasoningPageHeader .primaryAction{border:0;border-radius:9px;background:#315f73;color:#fff;font-size:14px;font-weight:650;padding:12px 18px;cursor:pointer}
+.reasoningPageHeader .primaryAction:disabled{opacity:.6;cursor:wait}
+.reasoningPageHeader .reasoningAction small{display:block;font-size:12px;margin-top:8px}
+@media(max-width:1180px){.refinedGraph{grid-template-columns:minmax(0,1fr)}.refinedGraph .galileoInspector{max-height:none}.refinedReasoning .reasoningSummaryGrid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:720px){.investigationContextStrip,.reasoningPageHeader{align-items:flex-start;flex-direction:column}.investigationLensNav>a{min-width:100px}.refinedGraph .simpleGraphSummary{grid-template-columns:repeat(3,1fr)}.refinedGraph .simpleGraphSummary>div{border-bottom:0;border-right:1px solid #edf1f5;padding:12px 8px}.refinedGraph .simpleGraphSummary span{font-size:9px}.refinedGraph .galileoSearch{min-width:120px}.refinedGraph .galileoGraphStage{max-height:540px}.refinedReasoning .reasoningReportPane,.refinedReasoning .reasoningContextPane{padding:18px}}
