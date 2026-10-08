@@ -151,27 +151,27 @@ export default async function InvestigationsPage() {
   const communityCount=landscape.analytics?.communities?.length??0;
   const bridgeCount=landscape.analytics?.bridge_nodes?.length??0;
 
-  return <StudioFrame active="Investigations"><ResearchPage eyebrow="Living Investigation Runtime" title="Investigations" subtitle="Versioned research workspaces where evidence, hypotheses, confidence, agents and history stay connected.">
-    <ResearchMetrics>
+  return <StudioFrame active="Investigations"><ResearchPage eyebrow="YOUR RESEARCH" title="Investigations" subtitle="Choose a question to continue. Evidence, connections and insights are inside each workspace.">
+    <details className="investigationStats"><summary>Research overview</summary><ResearchMetrics>
       <Metric label="Investigations" value={investigations.length} note="living and replayable" />
       <Metric label="Active" value={active} note="currently in review" tone="green" />
       <Metric label="Average confidence" value={`${avg}%`} note="across investigations" tone="violet" />
       <Metric label="History model" value="Append-only" note="no silent overwrites" tone="amber" />
-    </ResearchMetrics>
+    </ResearchMetrics></details>
 
-    <ResearchPanel title="Living investigations" subtitle="Open a workspace to inspect evidence, confidence, agent findings and timeline." action={<span className="panelCode">GET /api/v1/investigations</span>}>
+    <ResearchPanel title="Your investigations" subtitle="Select one to see its next step.">
       <div className="investigationGridV2">
         {investigations.map(inv => <Link className="investigationCardV2" href={`/investigations/${inv.id}`} key={inv.id}>
           <div className="investigationCardTop"><StatusPill tone={inv.status === "under_review" ? "amber" : "green"}>{inv.status.replaceAll("_"," ")}</StatusPill><span>{new Date(inv.updated_at).toLocaleDateString()}</span></div>
           <h3>{inv.title}</h3><p>{inv.summary ?? "Living, evidence-backed investigation."}</p>
           <div className="confidenceBarV2"><div><span>Confidence</span><strong>{Math.round(inv.confidence*100)}%</strong></div><i><b style={{width:`${Math.round(inv.confidence*100)}%`}} /></i></div>
-          <div className="cardFooterLink">Open scientific workspace →</div>
+          <div className="cardFooterLink">Open investigation →</div>
         </Link>)}
         {!investigations.length && <div className="emptyResearchState"><strong>No investigations yet</strong><p>Promote a discovery candidate to create the first living investigation.</p><Link href="/discovery">Open Discovery →</Link></div>}
       </div>
     </ResearchPanel>
 
-    {landscape.nodes.length>0 && <>
+    {landscape.nodes.length>0 && <details className="landscapeDisclosure"><summary><strong>Explore the research map</strong><span>Connections across all investigations</span></summary>
       <div className="structureScientificHeader">
         <div><span>SCIENTIFIC SYSTEM MAP</span><h2>Investigation Landscape</h2><p>Explore the complete evidence-derived topology across living investigations. Centrality, communities, bridge concepts, provenance, evidence paths and node inspection remain available.</p></div>
         <div className="structureTrust"><StatusPill tone="green">derived</StatusPill><StatusPill tone="blue">deterministic</StatusPill><StatusPill tone="violet">replayable</StatusPill></div>
@@ -185,6 +185,7 @@ export default async function InvestigationsPage() {
       <ResearchPanel title="Investigation Landscape" subtitle="Search, filter, zoom and inspect every node. The right-side inspector preserves scientific importance, evidence paths, structural role and provenance." action={<span className="panelCode">LIVE GRAPH PROJECTION</span>}>
         <GalileoGraph graph={landscape}/>
       </ResearchPanel>
-    </>}
+    </details>}
   </ResearchPage></StudioFrame>;
 }
+

@@ -4,11 +4,7 @@ const nav = [
   ["⌂", "Home", "/"],
   ["▣", "Investigations", "/investigations"],
   ["⌕", "Discovery", "/discovery"],
-  ["⊙", "Operations", "/operations"],
-  ["♙", "Agent Registry", "/agents"],
 ] as const;
-
-const collections = ["Lifestyle & Health", "Technology", "Markets", "Science"];
 
 export function StudioSidebar({ active = "Home" }: { active?: string }) {
   return (
@@ -22,20 +18,19 @@ export function StudioSidebar({ active = "Home" }: { active?: string }) {
         {nav.map(([icon, label, href]) => (
           <Link className={label === active ? "active" : ""} href={href} key={label}>
             <span className="navIcon">{icon}</span><span>{label}</span>
-            {label === "Investigations" && <em>1</em>}
-            {label === "Agent Registry" && <em>10</em>}
           </Link>
         ))}
       </nav>
 
-      <div className="navGroupLabel">Collections</div>
-      <div className="collectionList">
-        {collections.map((item) => <div key={item}><span>⌗</span>{item}<b>⌄</b></div>)}
-      </div>
+      <details className="sidebarTools" open={active === "Operations" || active === "Agent Registry"}>
+        <summary>More tools</summary>
+        <Link className={active === "Operations" ? "active" : ""} href="/operations">Operations</Link>
+        <Link className={active === "Agent Registry" ? "active" : ""} href="/agents">Agent Registry</Link>
+        <Link href="/signal-lake">Signal Lake</Link>
+        <Link href="/graph">Knowledge Graph</Link>
+      </details>
 
       <div className="sidebarFoot">
-        <Link href="/">▣ Documentation</Link>
-        <Link href="/operations">⚙ Settings</Link>
         <div className="sidebarMotto">See Further.<br/><strong>Understand Deeper.</strong><span className="moleculeDecor" /></div>
       </div>
     </aside>
@@ -45,12 +40,11 @@ export function StudioSidebar({ active = "Home" }: { active?: string }) {
 export function StudioTopbar() {
   return (
     <header className="studioTopbar">
-      <div className="globalSearch"><span>⌕</span><span>Search investigations, concepts, evidence... or type a command</span><kbd>⌘ K</kbd></div>
+      <span className="topbarTitle">Research workspace</span>
       <div className="topbarActions">
-        <span className="healthPill"><i /> System Health</span>
-        <button aria-label="Theme">☼</button>
-        <button className="notificationButton" aria-label="Notifications">♧<b>3</b></button>
-        <span className="avatar">DG</span>
+        <Link href="/">Home</Link>
+        <Link href="/investigations">All investigations →</Link>
+        <Link href="/discovery">Discovery</Link>
       </div>
     </header>
   );
@@ -59,3 +53,4 @@ export function StudioTopbar() {
 export function StudioFrame({ children, active }: { children: React.ReactNode; active?: string }) {
   return <div className="studioApp"><StudioSidebar active={active}/><div className="studioMain"><StudioTopbar/>{children}</div></div>;
 }
+

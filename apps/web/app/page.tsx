@@ -32,7 +32,7 @@ export default async function Home() {
     safeGet<Connector[]>("/api/v1/connectors", []),
   ]);
 
-  const featured = investigations[0];
+  const featured = [...investigations].sort((a,b)=>new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime())[0];
   const workspace = featured ? await safeGet<Workspace| null>(`/api/v1/investigations/${featured.id}/workspace`, null) : null;
   const healthy = connectors.filter(c => c.state?.health === "healthy").length;
   const sourceCount = workspace ? new Set(workspace.observations.map(o => o.source)).size : signal.sources.length;
@@ -40,15 +40,19 @@ export default async function Home() {
   const prior = workspace?.hypotheses[0]?.prior_confidence ?? confidence;
   const confidenceDelta = Math.max(0, confidence - prior);
   const featuredFindings = workspace?.agent_findings.slice(0,3) ?? findings.slice(0,3);
+  const nextHref = featured ? workspace && workspace.hypotheses.length === 0 ? `/investigations/${featured.id}?lens=evidence#hypothesis-setup` : `/investigations/${featured.id}` : "/discovery";
+  const nextLabel = featured ? workspace && workspace.hypotheses.length === 0 ? "Define a hypothesis" : "Continue investigation" : "Explore discoveries";
 
   return (
     <StudioFrame active="Home">
       <main className="researchHome">
         <section className="researchHero">
           <div>
-            <p className="heroKicker">SCIENTIFIC INVESTIGATION OPERATING SYSTEM</p>
-            <h1>From Signals to<br/>Scientific Understanding.</h1>
-            <p>YetSee turns the world&apos;s signals into auditable, evidence-backed, living investigations powered by agents and reasoning.</p>
+            <p className="heroKicker">YOUR RESEARCH</p>
+            <h1>{featured ? "Pick up where you left off." : "Start with a question."}</h1>
+            <p>{featured ? featured.title : "Explore emerging topics and create an investigation to test an idea."}</p>
+            <Link className="homePrimaryAction" href={nextHref}>{nextLabel} →</Link>
+            {featured&&<Link className="homeSecondaryAction" href="/investigations">See all investigations</Link>}
           </div>
           <div className="knowledgeOrb" aria-hidden="true">
             <span className="orbCore" />
@@ -61,13 +65,13 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="scientificMetrics">
+        <details className="homeSystemDetails"><summary>System activity</summary><section className="scientificMetrics">
           <Metric icon="▣" label="Live Investigations" value={investigations.length.toLocaleString()} note={investigations.length ? "living and replayable" : "ready for first investigation"}/>
           <Metric icon="▤" label="Evidence Sources" value={connectors.length.toLocaleString()} note={`${healthy} healthy`}/>
           <Metric icon="⌘" label="Knowledge Graph" value={graph.entities.toLocaleString()} note={`${graph.relationships.toLocaleString()} relations`}/>
           <Metric icon="♙" label="Agent Tasks" value={agentSummary.tasks.toLocaleString()} note={`${agentSummary.findings.toLocaleString()} findings`}/>
           <Metric icon="↗" label="Confidence Updates" value={(workspace?.hypotheses.length ?? 0).toLocaleString()} note="audited beliefs"/>
-        </section>
+        </section></details>
 
         <section className="dashboardGrid">
           <div className="dashboardPrimary">
@@ -80,23 +84,19 @@ export default async function Home() {
                   <span className="visualPulse"><i/> LIVE</span>
                   <div className="signalHorizon"><i/><i/><i/><i/><i/><i/></div>
                 </div>
-                <h3>{workspace?.investigation.title ?? featured?.title ?? "Running Clubs"}</h3>
-                <p>{workspace?.investigation.summary ?? featured?.summary ?? "Are running clubs becoming a broader lifestyle movement?"}</p>
+                <h3>{workspace?.investigation.title ?? featured?.title ?? "Start your first investigation"}</h3>
+                <p>{workspace?.investigation.summary ?? featured?.summary ?? "Explore discoveries and choose a question to investigate."}</p>
                 <div className="confidenceStrip">
                   <div><span>Confidence</span><strong>{confidence ? pct(confidence) : "—"}</strong></div>
                   <span className="positiveDelta">↑ {confidenceDelta ? pct(confidenceDelta) : "live"}</span>
                   <MiniSpark />
                 </div>
                 <div className="investigationFacts"><span><b>{workspace?.observations.length ?? 0}</b>Evidence</span><span><b>{sourceCount}</b>Sources</span><span><b>{featuredFindings.length}</b>Agent Findings</span></div>
-                <div className="investigationActions">{featured ? <Link className="primaryAction" href={`/investigations/${featured.id}`}>Open Investigation →</Link> : <Link className="primaryAction" href="/discovery">Discover Opportunities →</Link>}<Link href="/operations">View Timeline</Link></div>
+                <div className="investigationActions"><Link className="primaryAction" href={nextHref}>{nextLabel} →</Link></div>
               </article>
 
               <div className="investigationMiniList">
-                {(investigations.slice(1,4).length ? investigations.slice(1,4) : [
-                  {id:"ai",title:"AI Coding Agents",confidence:.682,status:"technology",summary:null,updated_at:""},
-                  {id:"battery",title:"Home Batteries",confidence:.624,status:"energy",summary:null,updated_at:""},
-                  {id:"health",title:"GLP-1 Lifestyle",confidence:.713,status:"health",summary:null,updated_at:""},
-                ]).map((item,index)=><div className="miniInvestigation" key={item.id}><span className="miniTag">{index===0?"TECHNOLOGY":index===1?"ENERGY":"HEALTH"}</span><strong>{item.title}</strong><div><b>{pct(item.confidence)}</b><span>↑ +{(4.2+index*2.1).toFixed(1)}%</span><MiniSpark /></div></div>)}
+                {investigations.filter(item=>item.id!==featured?.id).slice(0,3).map(item=><Link className="miniInvestigation" href={`/investigations/${item.id}`} key={item.id}><span className="miniTag">INVESTIGATION</span><strong>{item.title}</strong><div><b>{pct(item.confidence)}</b><span>Open →</span></div></Link>)}
               </div>
             </div>
           </div>
@@ -110,8 +110,8 @@ export default async function Home() {
 
             <section className="scienceCard sourceDiversity">
               <div className="sectionTitleRow compact"><div><h2>Source Diversity</h2><p>Independent sources strengthening investigations</p></div></div>
-              {(signal.sources.length ? signal.sources.slice(0,7) : [{source:"Google Trends",count:26},{source:"Reddit",count:22},{source:"News",count:18},{source:"YouTube",count:14},{source:"Academic",count:10},{source:"Jobs",count:6}]).map((s,idx)=>{
-                const max = Math.max(...(signal.sources.length ? signal.sources : [{count:26}]).map(x=>x.count), 1);
+              {signal.sources.slice(0,7).map((s,idx)=>{
+                const max = Math.max(...signal.sources.map(x=>x.count), 1);
                 return <div className="sourceBarRow" key={s.source}><span><i className={`sourceDot s${idx}`}/>{s.source}</span><b><i style={{width:`${Math.max(12,(s.count/max)*100)}%`}}/></b><em>{s.count}</em></div>
               })}
             </section>
@@ -130,11 +130,8 @@ export default async function Home() {
         <section className="railCard">
           <div className="sectionTitleRow compact"><div><h2>Live Agent Activity</h2><p>Real-time agent orchestration</p></div><Link href="/agents">View All</Link></div>
           <div className="activityList">
-            {(tasks.length ? tasks.slice(0,5) : [
-              {id:"1",agent_id:"Evidence Agent",task_type:"Audited Running Clubs evidence",status:"completed",created_at:"",result_json:{}},
-              {id:"2",agent_id:"Signal Steward",task_type:"Ingesting Google Trends signals",status:"running",created_at:"",result_json:{}},
-              {id:"3",agent_id:"Graph Analyst",task_type:"Updated investigation graph",status:"completed",created_at:"",result_json:{}},
-            ]).map((t,i)=><div key={t.id}><span className={`agentBullet a${i}`}>◉</span><p><strong>{humanize(t.agent_id)}</strong><small>{humanize(t.task_type)}</small></p><em className={t.status}>{t.status}</em></div>)}
+            {tasks.slice(0,5).map((t,i)=><div key={t.id}><span className={`agentBullet a${i}`}>◉</span><p><strong>{humanize(t.agent_id)}</strong><small>{humanize(t.task_type)}</small></p><em className={t.status}>{t.status}</em></div>)}
+            {!tasks.length&&<p className="emptyRail">No recent agent activity.</p>}
           </div>
         </section>
 
@@ -162,3 +159,4 @@ function Metric({icon,label,value,note}:{icon:string;label:string;value:string;n
 }
 function MiniSpark(){return <svg className="miniSpark" viewBox="0 0 90 30" aria-hidden="true"><polyline points="0,25 12,22 23,23 34,17 45,19 56,11 67,13 78,7 90,4"/></svg>}
 function humanize(value:string){ return value.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()); }
+

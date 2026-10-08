@@ -76,8 +76,8 @@ type Lens = "overview"|"evidence"|"structure"|"reasoning"|"agents"|"history"|"co
 const lenses:{id:Lens;label:string;question:string}[] = [
   {id:"overview",label:"Overview",question:"What is happening?"},
   {id:"evidence",label:"Evidence",question:"What supports or contradicts this?"},
-  {id:"structure",label:"Structure",question:"How is everything connected?"},
-  {id:"reasoning",label:"Reasoning",question:"What does the evidence imply?"},
+  {id:"structure",label:"Connections",question:"How is everything connected?"},
+  {id:"reasoning",label:"Insights",question:"What does the evidence imply?"},
   {id:"agents",label:"Agents",question:"Who is investigating what?"},
   {id:"history",label:"History",question:"How has understanding evolved?"},
   {id:"compare",label:"Compare",question:"Where do models agree or disagree?"},
@@ -92,7 +92,8 @@ const humanize=(value:string)=>value.replaceAll("_"," ").replace(/\b\w/g,c=>c.to
 
 function WorkspaceNav({id,active}:{id:string;active:Lens}){
   return <nav className="investigationLensNav" aria-label="Investigation lenses">
-    {lenses.map(l=><Link key={l.id} className={active===l.id?"active":""} href={`/investigations/${id}?lens=${l.id}`}><strong>{l.label}</strong><small>{l.question}</small></Link>)}
+    {lenses.slice(0,4).map(l=><Link key={l.id} aria-current={active===l.id?"page":undefined} className={active===l.id?"active":""} href={`/investigations/${id}?lens=${l.id}`}><strong>{l.label}</strong><small>{l.question}</small></Link>)}
+    <details className="moreLenses" open={lenses.slice(4).some(l=>l.id===active)}><summary>More views</summary><div>{lenses.slice(4).map(l=><Link key={l.id} aria-current={active===l.id?"page":undefined} className={active===l.id?"active":""} href={`/investigations/${id}?lens=${l.id}`}>{l.label}</Link>)}</div></details>
   </nav>
 }
 
@@ -152,13 +153,20 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
   const canonicalSourceCount=evidenceAccounting.independent_source_count;
   const canonicalSupporting=evidenceAccounting.supporting_count;
   const canonicalContradicting=evidenceAccounting.contradicting_count;
+  const nextStep = !primary
+    ? {title:"Start with a hypothesis",detail:"Write the idea you want to test, then connect an observation.",label:"Define a hypothesis",href:`/investigations/${id}?lens=evidence#hypothesis-setup`}
+    : !latestReasoning
+      ? {title:"See what the evidence suggests",detail:"Review the evidence and run an interpretation when you are ready.",label:"Review insights",href:`/investigations/${id}?lens=reasoning`}
+      : {title:"Review the latest interpretation",detail:"See the conclusion and trace it back to the evidence.",label:"Open insights",href:`/investigations/${id}?lens=reasoning`};
 
   const commonHeader=<>
+    <Link className="backToInvestigations" href="/investigations">← All investigations</Link>
     <div className="investigationContextStrip">
       <div><StatusPill tone={inv.status==="under_review"?"amber":"green"}>{inv.status.replaceAll("_"," ")}</StatusPill><strong className="investigationTitle">{inv.title}</strong></div>
       <div><span><b>{pct(currentConfidence)}</b> investigation confidence</span><span><b>{canonicalEvidenceCount}</b> evidence</span><span><b>{canonicalSourceCount}</b> sources</span><span><b>{w.timeline.length}</b> events</span><span><b>{reasoningRuns.length}</b> reasoning runs</span></div>
     </div>
     <WorkspaceNav id={id} active={active}/>
+    {active==="overview"&&<section className="workspaceNextStep" aria-label="Suggested next step"><div><span>NEXT STEP</span><h2>{nextStep.title}</h2><p>{nextStep.detail}</p></div><Link href={nextStep.href}>{nextStep.label} →</Link></section>}
   </>;
 
   let body:React.ReactNode;
