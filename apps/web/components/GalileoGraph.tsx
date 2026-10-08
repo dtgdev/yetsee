@@ -190,6 +190,10 @@ function scorePercent(value: number | undefined) {
   return `${Math.round((value ?? 0) * 100)}%`;
 }
 
+function counted(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 export default function GalileoGraph({ graph, canonicalSourceCount }: { graph: GraphData; canonicalSourceCount?: number }) {
   const [selectedId, setSelectedId] = useState(
     graph.nodes.find((n) => n.kind === "investigation")?.id ?? graph.nodes[0]?.id ?? "",
@@ -475,7 +479,7 @@ export default function GalileoGraph({ graph, canonicalSourceCount }: { graph: G
               <span>What connects this item</span>
               <p className="scientificInterpretation">
                 {viewMode === "simple"
-                  ? `${selected.label} has ${relatedEdges.length} relationship(s) in this investigation and is backed by ${selected.evidence_count} evidence item(s) from ${selected.source_count} source(s).`
+                  ? `${selected.label} has ${counted(relatedEdges.length, "relationship")} in this investigation and is backed by ${counted(selected.evidence_count, "evidence item")} from ${counted(selected.source_count, "source")}.`
                   : isBridge
                     ? `${selected.label} links ${isBridge.communities_connected} structural neighborhoods and carries ${scorePercent(isBridge.betweenness)} betweenness centrality.`
                     : `${selected.label} has ${scorePercent(pagerank[selected.id])} PageRank within this investigation-scoped projection and is backed by ${selected.evidence_count} evidence item(s).`}
@@ -489,7 +493,7 @@ export default function GalileoGraph({ graph, canonicalSourceCount }: { graph: G
                 const other = graph.nodes.find((n) => n.id === otherId);
                 return (
                   <button key={edge.id} onClick={() => other && setSelectedId(other.id)}>
-                    <div><strong>{relationshipLabel(edge.kind)}</strong><small>{other?.label ?? otherId}</small></div>
+                    <div><strong>{relationshipLabel(edge.kind)}</strong><small>{displayLabels.get(otherId)?.label ?? other?.label ?? otherId}</small></div>
                     {viewMode === "scientific" && <em>{Math.round(edge.confidence * 100)}%</em>}
                   </button>
                 );
@@ -499,7 +503,7 @@ export default function GalileoGraph({ graph, canonicalSourceCount }: { graph: G
             <section className="inspectorSection">
               <span>Evidence path</span>
               <div className="evidencePath">
-                <b>{kindLabel(selected.kind)}</b><i>→</i><b>{evidenceIds.length} evidence</b><i>→</i><b>{selected.source_count} sources</b>
+                <b>{kindLabel(selected.kind)}</b><i>→</i><b>{counted(evidenceIds.length, "evidence")}</b><i>→</i><b>{counted(selected.source_count, "source")}</b>
               </div>
               <div className="evidencePathActions">
                 <button onClick={() => runEvidencePath("why")} disabled={pathLoading}>

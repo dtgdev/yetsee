@@ -5,6 +5,7 @@ import InvestigationMissionActions from "../../../components/InvestigationMissio
 import { RunGraphReasoner } from "../../../components/ReasoningActions";
 import GalileoGraph from "../../../components/GalileoGraph";
 import LiteratureSynthesis, { type LiteratureSynthesisItem } from "../../../components/LiteratureSynthesis";
+import EvidenceStrengthPanel, { type EvidenceProfile } from "../../../components/EvidenceStrengthPanel";
 import CurrentAgentFindingsPanel from "../../../components/CurrentAgentFindingsPanel";
 import { StudioFrame } from "../../../components/StudioChrome";
 import { Metric, ResearchMetrics, ResearchPage, ResearchPanel, StatusPill } from "../../../components/ResearchWorkspace";
@@ -109,7 +110,7 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
     graphPreparationFailed = true;
   }
   const emptyAccounting:EvidenceAccounting={canonical_evidence_count:0,observation_evidence_count:0,literature_evidence_count:0,independent_source_count:0,independent_publication_count:0,supporting_count:0,contradicting_count:0,contextual_count:0,literature_supporting_count:0,literature_contradicting_count:0,literature_contextual_count:0,literature_items:[],policy:{canonical_sources:["observation","scientific_passage"],derived_claims_are_evidence:false,memory_is_evidence:false}};
-  const [w,allCommands,reasoningResults,reasoningRuns,reasoners,investigationGraph,evidenceAccounting,literatureSynthesis,agentManifests]=await Promise.all([
+  const [w,allCommands,reasoningResults,reasoningRuns,reasoners,investigationGraph,evidenceAccounting,literatureSynthesis,evidenceProfiles,agentManifests]=await Promise.all([
     apiGet<Workspace>(`/api/v1/investigations/${id}/workspace`),
     safe<Command[]>("/api/v1/kernel/commands?limit=150",[]),
     safe<ReasoningResult[]>(`/api/v1/investigations/${id}/reasoning/results`,[]),
@@ -118,6 +119,7 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
     apiGet<InvestigationGraph>(`/api/v1/investigations/${id}/graph/read-model`),
     safe<EvidenceAccounting>(`/api/v1/investigations/${id}/evidence-accounting`,emptyAccounting),
     safe<LiteratureSynthesisItem[]>(`/api/v1/investigations/${id}/claim-synthesis`,[]),
+    safe<EvidenceProfile[]|null>(`/api/v1/investigations/${id}/evidence-profiles`,null),
     safe<AgentManifest[]>("/api/v1/agents",[]),
   ]);
 
@@ -163,6 +165,7 @@ export default async function Page({params,searchParams}:{params:Promise<{id:str
   if(active==="evidence"){
     body=<div className="lensWorkspace">
       <ResearchMetrics><Metric label="Evidence" value={canonicalEvidenceCount} note={`${evidenceAccounting.observation_evidence_count} observations · ${evidenceAccounting.literature_evidence_count} literature passages`}/><Metric label="Distinct sources" value={canonicalSourceCount} note={`${evidenceAccounting.independent_publication_count} distinct publications`} tone="violet"/><Metric label="Supporting" value={canonicalSupporting} note="canonical evidence links" tone="green"/><Metric label="Contradicting" value={canonicalContradicting} note={`${evidenceAccounting.contextual_count} contextual`} tone="red"/></ResearchMetrics>
+      <EvidenceStrengthPanel investigationId={id} profiles={evidenceProfiles} canonicalEvidenceCount={canonicalEvidenceCount} canonicalSourceCount={canonicalSourceCount} observationCount={evidenceAccounting.observation_evidence_count}/>
       <LiteratureSynthesis investigationId={id} items={literatureSynthesis}/>
       {evidenceAccounting.literature_items.length>0&&<div id="scientific-literature"><ResearchPanel title="Scientific literature" subtitle="Canonical source passages. Derived claims and interpretations are tracked separately and do not inflate evidence counts."><div className="evidenceSources">{evidenceAccounting.literature_items.map(item=><article key={item.evidence_link_id}><div><span className="sourceStance">{item.stance}</span><strong>{item.publication?.title??"Scientific publication"}</strong><small>{item.publication?.journal??""}{item.publication?.pmid?` · PMID ${item.publication.pmid}`:""}{item.publication?.doi?` · DOI ${item.publication.doi}`:""}</small></div><p>{item.passage.text}</p>{item.publication?.source_url&&<a href={item.publication.source_url} target="_blank" rel="noreferrer">View source ↗</a>}</article>)}</div><small className="mechanicsNote">Evidence policy: scientific passages are canonical; claims and memory remain derived context.</small></ResearchPanel></div>}
       <div className="researchTwoCol wideLeft"><ResearchPanel title="Observation evidence" subtitle="Structured observations remain first-class canonical evidence alongside literature passages."><ObservationTable w={w}/></ResearchPanel><ResearchPanel title="Source diversity" subtitle="Distinct evidence sources, deduplicated by publication for scientific literature. Study independence is assessed separately." className="stickyPanel"><div className="sourceDiversityV2">{sourceLabels.map((s,i)=><div key={s}><span><i className={`srcTone s${i%5}`}/>{s}</span><b><i style={{width:"100%"}}/></b><em>1</em></div>)}</div><div className="lensInsight"><span>Scientific question</span><strong>What supports or contradicts this investigation?</strong><p>Evidence remains immutable. Classification, claims and interpretation are recorded separately.</p></div></ResearchPanel></div>
